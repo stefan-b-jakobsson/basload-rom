@@ -32,6 +32,8 @@
     file_len: .res 1            ;Length of file name
 .CODE
 
+.export file_buf
+
 ;******************************************************************************
 ;Function name: file_open
 ;Purpose......: Opens a source file for reading; before calling, store

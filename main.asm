@@ -67,6 +67,24 @@ jmp main_entry
 ;Output.......: Nothing
 ;Errors.......: Nothing
 .proc main_entry
+    lda ROM_SEL
+    sta rom_bank
+    jsr bridge_copy
+    jsr token_init
+    
+    ldx #0
+    ldy #4
+    jsr token_get
+    
+    sta $5000
+    stx $5001
+    bcs :+
+    stz $5002 
+    rts
+:   lda #1
+    sta $5002
+    rts
+    
     ; Backup zero page and golden RAM
     jsr main_backup_ram
 
@@ -82,22 +100,22 @@ jmp main_entry
 
     ; Set device number
     lda KERNAL_R0+1
-    sta file_device
+    ;sta file_device
 
     ; Copy file name
     ldx KERNAL_R0
-    stx file_len
+    ;stx file_len
     beq no_file
     
 :   dex
     lda $bf00,x
-    sta file_name,x
+    ;sta file_name,x
     cpx #0
     beq init_done
     bra :-
 
 init_done:
-    jsr loader_run
+    ;jsr loader_run
     bra exit
 
 no_file:
@@ -122,19 +140,19 @@ exit:
 
     ldx #0
 :   lda $0400,x
-    sta $bc00,x
+    sta goldenram_backup,x
     lda $0500,x
-    sta $bd00,x
+    sta goldenram_backup+$100,x
     lda $0600,x
-    sta $be00,x
+    sta goldenram_backup+$200,x
     lda $0700,x
-    sta $bf00,x
+    sta goldenram_backup+$300,x
     inx
     bne :-
 
     ldx #$7f-$22
 :   lda $22,x
-    sta $bb00,x
+    sta goldenram_backup+$400,x
     dex
     bpl :-
 
@@ -152,31 +170,35 @@ exit:
     sta RAM_SEL
 
     ldx #0
-:   lda $bc00,x
+:   lda goldenram_backup,x
     sta $0400,x
-    lda $bd00,x
+    lda goldenram_backup+$100,x
     sta $0500,x
-    lda $be00,x
+    lda goldenram_backup+$200,x
     sta $0600,x
-    lda $bf00,x
+    lda goldenram_backup+$300,x
     sta $0700,x
     inx
     bne :-
 
     ldx #$7f-$22
-:   lda $bb00,x
+:   lda goldenram_backup+$400,x
     sta $22,x
     dex
     bpl :-
     rts
 .endproc
 
+.segment "RAM1"
+    goldenram_backup: .res $045e
+.CODE
+
 .include "bridge.inc"
 .include "file.inc"
 .include "line.inc"
 .include "token.inc"
-.include "label.inc"
+.include "symbol.inc"
 .include "util.inc"
 .include "msg.inc"
-.include "loader.inc"
+;.include "loader.inc"
 .include "retval.inc"
