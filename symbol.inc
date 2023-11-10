@@ -26,7 +26,8 @@
 
 ; Symbol table layout
 ; -------------------
-; Symbols (labels and variables) are stored in RAM banks 2..9.
+; Symbols (labels and variables) are stored in RAM banks 2..9. These
+; functions also use bank 1 for some metadata.
 ; 
 ; An entry in the table consists of 32 bytes as described below:
 ; 
@@ -39,18 +40,25 @@
 ; 29     01   Symbol type
 ; 30     02   Value
 ; 
-; Symbols are stored in 256 buckets, one for each
-; possible checksum value.
+; A checksum is calculated for each symbol name, simply the LSB of
+; the sum of the char values. The checksum is used to speed up
+; symbol search.
+;
+; The symbols are stored in 256 "buckets", one for each
+; possible checksum value. Each bucket is a linked list of 
+; symbols with the same checksum. 
 ; 
 ; A reference to the first symbol in each bucket is stored
-; in symbol_buckets_bank and symbol_buckets_offset. The bank
-; is simply the RAM bank where the entry is stored. The offset
-; is the position within that bank. You can convert from offset
-; to memory address as follows: address = offset * 32 + $A000
+; in the arrays symbol_buckets_bank and symbol_buckets_offset. 
 ;
-; Each symbol hold a reference to the next symbol in the backet. 
+; You can convert from offset to memory address as follows: 
+; address = offset * 32 + $A000
 ;
-; The table may hold a maximum of 2,048 symbols.
+; The table may hold a maximum of 2,048 symbols. The X16 Basic
+; supports a maximum of 950 different variable names.
+
+SYMBOL_FIRST_BANK = 1
+SYMBOL_LAST_BANK = 9
 
 SYMBOL_NAME = 0
 SYMBOL_LEN = 26
@@ -86,8 +94,8 @@ SYMBOLTYPE_STRING = 3
 ;Output.......: Nothing
 ;Error........: None
 .proc symbol_init
-    ; Set all buckets to null (=0)
-    lda #1
+    ; Set all buckets to null
+    lda #SYMBOL_FIRST_BANK
     sta RAM_SEL
 
     ldx #0
@@ -97,12 +105,12 @@ SYMBOLTYPE_STRING = 3
     cpx #0
     bne :-
 
-    ; Next symbol table entry
+    ; Set next symbol table entry location in banked RAM
     lda #2
     sta symbol_next_bank
     stz symbol_next_offset
 
-    ; Next variable is "A"
+    ; Set next available variable name to "A"
     lda #'a'
     sta symbol_next_var
     lda #0
@@ -126,14 +134,35 @@ SYMBOLTYPE_STRING = 3
 ;               A   0: OK
 ;Error........: A   1: Duplicate symbol
 ;                   2: Symbol table full
+;                   3: No available variable name
 .proc symbol_add
     ; Store input
     stx index1
     sty index2
     sta type
 
-    ; Calculate checksum
-    stz cs
+    ; Check if duplicate
+    ; TODO....
+
+    ; Check if symbol table is full
+    lda symbol_next_bank
+    cmp #SYMBOL_LAST_BANK+1
+    bcc :+
+    lda #2
+    rts
+
+    ; Check variable name availability
+:   lda type
+    cmp #SYMBOLTYPE_LABEL
+    bne :+
+    lda symbol_next_var
+    cmp #'z'+1
+    bcc :+
+    lda #3
+    rts
+
+    ; Calculate symbol name checksum
+:   stz cs
     ldx index1
 :   clc
     lda file_buf,x
@@ -151,8 +180,8 @@ SYMBOLTYPE_STRING = 3
     inc
     sta len
 
-    ; Check if bucket is empty?
-    lda #1
+    ; Check if bucket is empty
+    lda #SYMBOL_FIRST_BANK
     sta RAM_SEL
     ldx cs
     lda symbol_buckets_bank,x
@@ -186,7 +215,7 @@ find_tail:
     adc #$a0
     sta symbol_pointer+1
 
-    ; Get next bank field, 0 => we're at end of linked list
+    ; Get next bank field, 0 => we're at end of the linked list
     ldy #SYMBOL_NEXT_BANK
     lda (symbol_pointer),y
     beq tail_found
