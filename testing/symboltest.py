@@ -244,6 +244,48 @@ class SymbolTest(unittest.TestCase):
         self.assertEqual(self.e.getX(), 65)  # Value, low
         self.assertEqual(self.e.getY(), 0)  # Value, high
         self.assertEqual(self.e.getA(), 1)  # Type
-        
+
+    def test_add_duplicates(self):
+        labels = self.e.labels
+
+        # Setup & run 1
+        self.symbol_init()
+
+        self.e.setMemory(labels["line_dstlin"], 1)
+        self.e.setMemory(labels["line_dstlin"] + 1, 0)
+        self.set_file_buf("hello")
+        self.e.setX(0)
+        self.e.setY(4)
+        self.e.setA(0)
+        self.e.setStatus(self.e.getStatus() & (255-Status.C))
+        self.e.run(labels["symbol_add"])
+
+        # Setup & run 2
+        self.e.setMemory(labels["line_dstlin"], 2)
+        self.e.setMemory(labels["line_dstlin"] + 1, 0)
+        self.set_file_buf("hello")
+        self.e.setX(0)
+        self.e.setY(4)
+        self.e.setA(0)
+        self.e.setStatus(self.e.getStatus() & (255-Status.C)) # C=0, run duplicate symbol check
+        self.e.run(labels["symbol_add"])
+
+        # Assertions 2
+        self.assertEqual(self.e.getA(), 1) # Response value 1 = duplicate symbol
+
+        # Setup & run 3
+        self.e.setMemory(labels["line_dstlin"], 2)
+        self.e.setMemory(labels["line_dstlin"] + 1, 0)
+        self.set_file_buf("hello")
+        self.e.setX(0)
+        self.e.setY(4)
+        self.e.setA(0)
+        self.e.setStatus(self.e.getStatus() | Status.C) # C=1, skip duplicate symbol check
+        self.e.run(labels["symbol_add"])
+
+        # Assertions 3
+        self.assertEqual(self.e.getA(), 0) # Response value 0 = OK, as duplicate symbol check was disabled
+        self.assertEqual(self.e.getMemory(labels["symbol_next_offset"]),2) # Ensure only two labels was added, and that one was ignored
+
 if __name__ == '__main__':
     unittest.main()

@@ -26,8 +26,21 @@
 
 ; Symbol table layout
 ; -------------------
-; Symbols (labels and variables) are stored in RAM banks 2..9. These
-; functions also use bank 1 for some metadata.
+; In this code, symbols refer both to label and variable names. The symbol
+; table data is stored in RAM banks SYMBOL_FIRST_BANK to
+; SYMBOL_LAST_BANK.
+; 
+; A checksum is calculated for each symbol name, simply the LSB of
+; the sum of its char values. The checksum is used to speed up
+; symbol search.
+;
+; The symbols are stored in 256 separate "buckets", one for each
+; possible checksum value. Each bucket is a linked list of 
+; symbols with the same checksum.
+;
+; A reference to the head of each bucket is stored
+; in the arrays symbol_buckets_bank and symbol_buckets_offset. These
+; arrays are placed in RAM bank BASLOAD_RAM1.
 ; 
 ; An entry in the table consists of 32 bytes as described below:
 ; 
@@ -39,27 +52,19 @@
 ; 28     01   Next symbol, offset
 ; 29     01   Symbol type
 ; 30     02   Value
-; 
-; A checksum is calculated for each symbol name, simply the LSB of
-; the sum of the char values. The checksum is used to speed up
-; symbol search.
-;
-; The symbols are stored in 256 "buckets", one for each
-; possible checksum value. Each bucket is a linked list of 
-; symbols with the same checksum. 
-; 
-; A reference to the first symbol in each bucket is stored
-; in the arrays symbol_buckets_bank and symbol_buckets_offset. 
 ;
 ; You can convert from offset to memory address as follows: 
 ; address = offset * 32 + $A000
 ;
-; The table may hold a maximum of 2,048 symbols. The X16 Basic
-; supports a maximum of 950 different variable names.
+; The table may hold a maximum of 2,048 symbols. X16 Basic
+; supports a maximum of 950 different variable names that
+; may be freely used.
 
-SYMBOL_FIRST_BANK = 1
+; Banked RAM usage
+SYMBOL_FIRST_BANK = 2
 SYMBOL_LAST_BANK = 9
 
+; Symbol table entry fields
 SYMBOL_NAME = 0
 SYMBOL_LEN = 26
 SYMBOL_NEXT_BANK = 27
@@ -67,6 +72,7 @@ SYMBOL_NEXT_OFFSET = 28
 SYMBOL_TYPE = 29
 SYMBOL_VALUE = 30
 
+; Symbol entry types
 SYMBOLTYPE_LABEL = 0
 SYMBOLTYPE_FLOAT = 1
 SYMBOLTYPE_INT = 2
@@ -85,6 +91,7 @@ SYMBOLTYPE_STRING = 3
     symbol_buckets_offset: .res $100
 .CODE
 
+; Exports needed only for unit testing
 .export symbol_init, symbol_add, symbol_find, symbol_buckets_bank, symbol_buckets_offset, file_buf, line_dstlin, symbol_next_bank, symbol_next_offset, symbol_pointer
 
 ;******************************************************************************
@@ -95,7 +102,7 @@ SYMBOLTYPE_STRING = 3
 ;Error........: None
 .proc symbol_init
     ; Set all buckets to null
-    lda #SYMBOL_FIRST_BANK
+    lda #BASLOAD_RAM1
     sta RAM_SEL
 
     ldx #0
@@ -106,7 +113,7 @@ SYMBOLTYPE_STRING = 3
     bne :-
 
     ; Set next symbol table entry location in banked RAM
-    lda #2
+    lda #SYMBOL_FIRST_BANK
     sta symbol_next_bank
     stz symbol_next_offset
 
@@ -142,10 +149,14 @@ SYMBOLTYPE_STRING = 3
     sta type
 
     ; Check if duplicate
-    ; TODO....
+    bcs :+  ; Skip duplicate label check if C=1
+    jsr symbol_find
+    bcs :+ ; Symbol not found, continue
+    lda #1
+    rts 
 
     ; Check if symbol table is full
-    lda symbol_next_bank
+:   lda symbol_next_bank
     cmp #SYMBOL_LAST_BANK+1
     bcc :+
     lda #2
@@ -181,7 +192,7 @@ SYMBOLTYPE_STRING = 3
     sta len
 
     ; Check if bucket is empty
-    lda #SYMBOL_FIRST_BANK
+    lda #BASLOAD_RAM1
     sta RAM_SEL
     ldx cs
     lda symbol_buckets_bank,x
@@ -312,7 +323,7 @@ inc_var:
     cmp #1
     beq :+
     
-    ; Current variable name ends with a '9' => The next variable will end with an 'A'
+    ; Current variable name ends with a '9' => The next variable will end with 'A'
     cmp #'9'+1
     beq :++
     
@@ -420,7 +431,7 @@ exit:
     bra :-
 
     ; Check if bucket head is NULL
-:   lda #1                          ; Select RAM bank 1
+:   lda #BASLOAD_RAM1               ; Select RAM bank 1
     sta RAM_SEL
     
     ldx cs
