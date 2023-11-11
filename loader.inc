@@ -40,7 +40,7 @@
     ;Prepare pass 1
     jsr token_init
     jsr line_init
-    jsr label_init
+    jsr symbol_init
 
     jsr file_open
     cmp #0
@@ -97,6 +97,17 @@ eof2:
 
     ;We're done
     jsr file_close
+
+    ;Set BASIC pointers
+    lda line_code
+    sta KERNAL_VARTAB
+    sta KERNAL_ARYTAB
+    sta KERNAL_STREND
+    
+    lda line_code+1
+    sta KERNAL_VARTAB+1
+    sta KERNAL_ARYTAB+1
+    sta KERNAL_STREND+1
     rts
 
 .endproc

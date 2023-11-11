@@ -197,7 +197,7 @@ class SymbolTest(unittest.TestCase):
         self.set_file_buf("hello")
         self.e.setX(0)
         self.e.setY(4)
-        self.e.setA(0)
+        self.e.setA(1)
         self.e.setStatus(self.e.getStatus() & (255-Status.C))
         self.e.run(labels["symbol_add"])
 

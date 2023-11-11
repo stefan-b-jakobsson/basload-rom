@@ -24,6 +24,8 @@
 ;OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ;OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+.export token_init, token_get, token_names, token_addrl_tbl, token_addrh_tbl
+
 ;******************************************************************************
 ;Function name: token_init
 ;Purpose......: Copies token tables from BASIC ROM bank and gathers
@@ -117,7 +119,6 @@
     tya
     dey
     sty token_ext_stmt_last
-    sty $5010
 
     ; Copy extended function table
     ldx #$ff
@@ -125,8 +126,6 @@
     jsr token_copy
     dey
     sty token_ext_func_last
-    sty $5011
-
     rts
     
 error:
@@ -221,15 +220,13 @@ loop:
     beq exit
     sta (TEMP1),y
     iny
-
     pha
     clc
     and #%01111111
     adc cs
     sta cs
     pla
-    and #%10000000
-    beq loop
+    bpl loop
 
 token_end:
     sty len
@@ -237,6 +234,7 @@ token_end:
     ldy index
 
     sta token_len_tbl,y             ; Store token len in table
+    
     lda cs
     sta token_cs_tbl,y              ; Store token checksum in table
     clc
@@ -252,6 +250,8 @@ token_end:
 next:
     inc index                       ; Prepare for next token
     ldy #0
+
+    stz cs
 
     clc                             ; Move output pointer to next token
     lda token_ptr
@@ -305,23 +305,27 @@ exit:
     ; Calculate checksum
     stz cs
     ldx index1
-    ldy len
+:   lda file_buf,x
+    cmp #$41
+    bcc :+
+    and #%11011111
 :   clc
-    lda filebuf,x
     adc cs
     sta cs
+    cpx index2
+    beq :+
     inx
-    dey
-    bne :-
+    bra :--
 
     ; Select RAM bank 1
-    lda #1
+:   lda #1
     sta RAM_SEL
 
     ; Look for a matching token
     stz token_index
-    ldx #0
 loop:
+    ldx token_index
+
     lda token_cs_tbl,x
     cmp cs
     bne nomatch
@@ -330,33 +334,36 @@ loop:
     cmp len
     bne nomatch
 
-    .byt $db
-
     ldy #0
     lda token_addrl_tbl,x
     sta TEMP1
     lda token_addrh_tbl,x
     sta TEMP1+1
+
     ldx index1
 
 :   lda (TEMP1),y
     bmi eot
     sta temp
-    lda filebuf,X
+    lda file_buf,x
+    cmp #$41
+    bcc :+
     and #%11011111
-    cmp temp
+:   cmp temp
     cpx index2
     bcs nomatch
     iny
     inx
-    bra :-
+    bra :--
 
 eot:
     and #%01111111
     sta temp
-    lda filebuf,x
+    lda file_buf,x
+    cmp #$41
+    bcc :+
     and #%11011111
-    cmp temp
+:   cmp temp
     bne nomatch
 
 match:
@@ -405,7 +412,6 @@ std:
     
 nomatch:
     inc token_index
-    ldx token_index
     cpx token_ext_func_last
     beq :+
     bcs notfound
@@ -424,8 +430,6 @@ notfound:
     temp: .res 1
 .CODE
 .endproc
-
-filebuf: .byt "vpeek"
 
 .ZEROPAGE
     token_ptr: .res 2

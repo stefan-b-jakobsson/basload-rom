@@ -58,6 +58,8 @@
 ;******************************************************************************
 jmp main_entry
 
+.export bridge_copy, rom_bank
+
 ;******************************************************************************
 ;Function name: main_entry
 ;Purpose......: Main entry point for
@@ -67,24 +69,6 @@ jmp main_entry
 ;Output.......: Nothing
 ;Errors.......: Nothing
 .proc main_entry
-    lda ROM_SEL
-    sta rom_bank
-    jsr bridge_copy
-    jsr token_init
-    
-    ldx #0
-    ldy #4
-    jsr token_get
-    
-    sta $5000
-    stx $5001
-    bcs :+
-    stz $5002 
-    rts
-:   lda #1
-    sta $5002
-    rts
-    
     ; Backup zero page and golden RAM
     jsr main_backup_ram
 
@@ -100,22 +84,22 @@ jmp main_entry
 
     ; Set device number
     lda KERNAL_R0+1
-    ;sta file_device
+    sta file_device
 
     ; Copy file name
     ldx KERNAL_R0
-    ;stx file_len
+    stx file_len
     beq no_file
     
 :   dex
     lda $bf00,x
-    ;sta file_name,x
+    sta file_name,x
     cpx #0
     beq init_done
     bra :-
 
 init_done:
-    ;jsr loader_run
+    jsr loader_run
     bra exit
 
 no_file:
@@ -200,5 +184,5 @@ exit:
 .include "symbol.inc"
 .include "util.inc"
 .include "msg.inc"
-;.include "loader.inc"
+.include "loader.inc"
 .include "retval.inc"
