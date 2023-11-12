@@ -346,10 +346,11 @@ loop:
     bmi eot
     sta temp
     lda file_buf,x
-    cmp #$41
+    cmp #$40
     bcc :+
     and #%11011111
 :   cmp temp
+    bne nomatch
     cpx index2
     bcs nomatch
     iny
@@ -360,7 +361,7 @@ eot:
     and #%01111111
     sta temp
     lda file_buf,x
-    cmp #$41
+    cmp #$40
     bcc :+
     and #%11011111
 :   cmp temp
@@ -383,7 +384,7 @@ extfunc:
     sbc token_ext_stmt_last
     dea
     clc
-    adc #$b0
+    adc #$d0
     tax
     lda #$ce
     clc
@@ -391,7 +392,7 @@ extfunc:
 
 extstmt:
     txa
-    sec
+    sec 
     sbc token_std_last
     dea
     clc

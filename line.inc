@@ -26,7 +26,7 @@ LINE_SYMBOL = 20
 
 ;******************************************************************************
 ;Function name: line_init
-;Purpose......: Initialized the line parsing functions; to be called once
+;Purpose......: Initializes the line parsing functions; to be called once
 ;               before pass1 and once before pass 2
 ;Input........: Nothing
 ;Output.......: Nothing
@@ -57,7 +57,7 @@ LINE_SYMBOL = 20
 ;Function name: line_pass1
 ;Purpose......: Pass 1; looks for label defintions and stores them in
 ;               the symbol table
-;Input........: Nothing
+;Input........: file_buf    A line of source code, NULL terminated
 ;Output.......: A = 0 if OK
 ;Errors.......: A = 1 if error occured
 .proc line_pass1
@@ -84,6 +84,10 @@ loop:
     ldx index_src
     lda file_buf,x
     bne switch_state
+    
+    ldx state
+    cpx #LINE_SYMBOL
+    beq switch_state
 
 eol:
     ; Rewind destination line number if the line didn't output anything to BASIC memory
@@ -157,6 +161,7 @@ symbol:
     bcc symbol_end
     cmp #'9'+1
     bcs symbol_end
+    jmp next
 
 label:
     lda index_dst
@@ -203,7 +208,7 @@ next:
 ;Function name: line_pass2
 ;Purpose......: Load pass 2; tokenizes the source code and replaces long
 ;               variable names with short names supported by BASIC v 2
-;Input........: Nothing
+;Input........: file_buf    A line of source code, NULL terminated
 ;Output.......: A = 0 if OK
 ;Errors.......: A = 1 if error occured
 .proc line_pass2
@@ -234,6 +239,10 @@ loop:
     ldx index_src
     lda file_buf,x
     bne switch_state
+
+    ldx state
+    cpx #LINE_SYMBOL
+    beq switch_state
 
 eol:
     ; Rewind destination line number if nothing was outputted to BASIC memory
@@ -523,12 +532,9 @@ label_declaration:
     jsr token_get
     bcs :+ ; C=1, token not found
     
-    ; It was a BASIC command/token, store to BASIC memory, clear state and jump to loop so that the default handler can process the colon
-    ldy index_dst
-    sta (line_code),y
-    inc index_dst
-    stz state
-    jmp loop
+    ; It was a BASIC command/token, decrement source index, so that the default handler can process the current char during the next loop
+    dec index_src
+    jmp instoken
 
 :   ; It was a label declaration, let's ignore it in pass 2! Jump to next to ignore the colon as well
     stz state
@@ -539,28 +545,17 @@ symbol_other:
     ldx symbol_start
     ldy index_src
     jsr token_get
-    bcs :+
+    bcc instoken ; It was a token, let's insert it
 
-    ; It was a token, insert it, and then jump to next
-    ldy index_dst
-    sta (line_code),y
-    inc index_dst
-    stz state
-    jmp next
-
-:   ; Check if it is a BASIC command/token (not including the current char)
+    ; Check if it is a BASIC command/token (not including the current char)
     ldx symbol_start
     ldy index_src
     dey ; Step back to ignore the current char
     jsr token_get
-    bcs :+
-
-    ; It was a token, insert it, and jump to loop so that the default handler can process the current char
-    ldy index_dst
-    sta (line_code),y
-    inc index_dst
-    stz state
-    jmp loop
+    bcs :+ 
+    
+    dec index_src
+    bra instoken
 
     ; Check if it is a user-defined symbol (not including the current char), previously decleared
 :   ldx symbol_start
@@ -589,7 +584,7 @@ symbol_other:
     bra :-
 
 :   stz state
-    jmp next
+    jmp loop
 
 newvar:   
     ; The symbol hasn't been decleared. Let's declear it as a new variable
@@ -624,6 +619,30 @@ insvar:
     cmp #'%'
     beq copy
     jmp loop
+
+instoken:
+    ; Insert standard token
+    ldy index_dst
+    sta (line_code),y
+    inc index_dst
+    
+    ; Insert extended token, if applicable
+    cmp #$ce
+    bne :+
+    iny
+    txa
+    sta (line_code),y
+    inc index_dst
+    bra :++
+
+:   cmp #$8f ; REM statement
+    bne :+
+    lda #LINE_REMARK
+    sta state
+    jmp next
+
+:   stz state
+    jmp next
 
 copy:
     ; Copy current char to BASIC memory
