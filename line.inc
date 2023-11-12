@@ -61,9 +61,142 @@ LINE_SYMBOL = 20
 ;Output.......: A = 0 if OK
 ;Errors.......: A = 1 if error occured
 .proc line_pass1
-    ;TODO: Not yet implemented
-    lda #0
+    ; Init
+    stz non_whitespace_count
+    stz index_src
+    stz index_dst
+    stz state
+
+    ; Increment source line
+    inc line_srclin
+    bne :+
+    inc line_srclin+1
+    bne :+
+    inc line_srclin+2
+
+    ; Increment destination line
+:   inc line_dstlin
+    bne loop
+    inc line_dstlin+1
+
+loop:
+    ; Get next char
+    ldx index_src
+    lda file_buf,x
+    bne switch_state
+
+eol:
+    ; Rewind destination line number if the line didn't output anything to BASIC memory
+    lda index_dst
+    bne :++
+
+    lda line_dstlin
+    bne :+
+    dec line_dstlin+1
+:   dec line_dstlin
+
+    ; Set response value, 0 = OK
+:   lda #0
     rts
+
+switch_state:
+    ldy state
+    cpy #LINE_SYMBOL
+    beq symbol
+
+default:
+    ; Whitespace - Ignored outside strings and REM statements
+    cmp #32 ; Blank space
+    beq :+
+    cmp #160 ; Shift+blank space
+    beq :+
+    cmp #9 ; Tab
+    bne :++
+:   jmp next
+:   inc non_whitespace_count
+
+    ; Convert all alphabetic chars to the same case
+    cmp #$40
+    bcc :+
+    and #%11011111
+    
+    ; Symbol start?
+:   cmp #'a'
+    bcc fake_copy
+    cmp #'z'+1
+    bcs fake_copy
+
+    ; Yes it's a symbol
+    stx symbol_start
+    lda #LINE_SYMBOL
+    sta state
+    jmp next
+
+symbol:
+    ; Convert all alphabetic chars to the same case
+    cmp #$40
+    bcc :+
+    and #%11011111
+
+    ; Alphabetic chars are allowed in symbol names, continue if found
+:   cmp #'a'
+    bcc :+
+    cmp #'z'+1
+    bcc next
+
+    ; Points are allowed in a symbol name, continue if found
+:   cmp #'.'
+    beq next
+
+    ; A symbol ended by a colon is a possible label declaration - needs further checking
+    cmp #':'
+    beq label
+
+    ; Decimal numbers are allowed in symbol names, continue if found
+    cmp #'0'
+    bcc symbol_end
+    cmp #'9'+1
+    bcs symbol_end
+
+label:
+    lda index_dst
+    bne symbol_end
+
+    ldx symbol_start
+    ldy index_src
+    dey
+    jsr token_get
+    bcc symbol_end
+
+    ldx symbol_start
+    ldy index_src
+    lda #0
+    dey
+    jsr symbol_add
+    stz state
+    jmp next
+
+symbol_end:
+    inc index_dst
+    stz state
+    jmp loop
+
+fake_copy:
+    ; In pass 2 this data will be copied to BASIC memory
+    ; We need to keep track of it, in order to tell that this will output data to BASIC memory
+    inc index_dst
+
+next:
+    inc index_src
+    jmp loop
+
+.segment "VARS"
+    non_whitespace_count: .res 1
+    index_src: .res 1
+    index_dst: .res 1
+    state: .res 1
+    symbol_start: .res 1
+.CODE
 .endproc
 
 ;******************************************************************************
@@ -354,7 +487,7 @@ symbol:
     bcc :+
     and #%11011111
 
-    ; Alphabetic charsare allowed in symbol names, continue if found
+    ; Alphabetic chars are allowed in symbol names, continue if found
 :   cmp #'a'
     bcc :+
     cmp #'z'+1
@@ -366,7 +499,7 @@ symbol:
 
     ; A symbol ended by a colon is a possible label declaration - needs further checking
     cmp #':'
-    beq symbol_label
+    beq label_declaration
 
     ; Decimal numbers are allowed in symbol names, continue if found
     cmp #'0'
@@ -378,7 +511,7 @@ symbol_cont:
     ; Continue, get next char
     jmp next
 
-symbol_label:
+label_declaration:
     ; Check if the symbol is at the start of the line
     ldx index_dst
     bne symbol_other ; It wasn't, so it can't be a label declaration
@@ -429,13 +562,36 @@ symbol_other:
     stz state
     jmp loop
 
-:   ; Check if it is an user-defined symbol (not including the current char), previously decleared
-    ldx symbol_start
+    ; Check if it is a user-defined symbol (not including the current char), previously decleared
+:   ldx symbol_start
     ldy index_src
     dey ; Step back to ignore the current char
     jsr symbol_find
-    bcc :+
+    bcs newvar
+    
+    cmp #1
+    beq insvar
 
+    ; It's a label, insert its line number
+    jsr util_bin_to_bcd
+    jsr util_bcd_to_str
+    stx TEMP1
+    sty TEMP1+1
+    ldy #0
+:   lda (TEMP1),y
+    beq :+
+    phy
+    ldy index_dst
+    sta (line_code),y
+    inc index_dst
+    ply
+    iny
+    bra :-
+
+:   stz state
+    jmp next
+
+newvar:   
     ; The symbol hasn't been decleared. Let's declear it as a new variable
     ldx symbol_start
     ldy index_src
@@ -443,7 +599,8 @@ symbol_other:
     lda #1 ; variable
     jsr symbol_add
 
-:   ; Store symbol value to BASIC memory
+insvar:
+   ; Store variable value to BASIC memory
     phy
     txa
     ldy index_dst
