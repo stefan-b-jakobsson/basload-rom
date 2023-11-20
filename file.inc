@@ -211,6 +211,72 @@ eol:
 .endproc
 
 ;******************************************************************************
+;Function name: file_open_symfile
+;Purpose......: Opens symfile for writing
+;Input........: Nothing
+;Output.......: Nothing
+;Errors.......: Nothing
+.proc file_open_symfile
+    ;Copy file name
+    ldx #0
+:   lda fn,x
+    sta symfile,X
+    inx
+    cpx fn_end-fn
+    bne :-
+    
+    ;Ensure file #3 is closed
+    bridge_setaddr KERNAL_CLOSE
+    lda #3
+    bridge_call
+
+    ;Set file name
+    bridge_setaddr KERNAL_SETNAM
+    lda #fn_end-fn
+    ldx #<symfile
+    ldy #>symfile
+    bridge_call
+
+    ;Set file params
+    bridge_setaddr KERNAL_SETLFS
+    lda #3
+    ldx file_device
+    ldy #3
+    bridge_call
+
+    ;Open
+    bridge_setaddr KERNAL_OPEN
+    bridge_call
+    bcs err
+    bridge_setaddr KERNAL_CHKOUT
+    ldx #3
+    bridge_call
+
+    rts
+
+err:
+    rts
+
+    fn: .byt "@:basload.sym,s,w"
+    fn_end:
+
+.segment "VARS"
+    symfile: .res 16 
+.CODE
+.endproc
+
+.proc file_close_symfile
+    bridge_setaddr KERNAL_CLOSE
+    lda #3
+    bridge_call
+
+    bridge_setaddr KERNAL_CLRCHN
+    bridge_call
+    rts
+.endproc
+
+
+;******************************************************************************
 ;Function name: file_status
 ;Purpose......: Reads disk status
 ;Input........: Nothing

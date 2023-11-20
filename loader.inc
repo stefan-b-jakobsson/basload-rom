@@ -38,9 +38,9 @@
     jsr response_set
     
     ;Prepare pass 1
+    jsr symbol_init
     jsr token_init
     jsr line_init
-    jsr symbol_init
 
     jsr file_open
     cmp #0
@@ -123,3 +123,11 @@ eof2:
     ;For now there is only one possible input source
     jmp file_readln
 .endproc
+
+header: 
+    .byt "basload symbol file",10,10,10
+    .byt "labels",10
+    .byt "======",10,10
+    .byt "------------------------------------------------",10
+    .byt "src ln #  dst ln #   name",10
+    .byt "------------------------------------------------",10,0

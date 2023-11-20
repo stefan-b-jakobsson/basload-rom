@@ -30,35 +30,38 @@
 ; table data is stored in RAM banks SYMBOL_FIRST_BANK to
 ; SYMBOL_LAST_BANK.
 ; 
-; A checksum is calculated for each symbol name, simply the LSB of
-; the sum of its char values. The checksum is used to speed up
-; symbol search.
+; The symbols are kept in a hash map, where symbol names are used as keys.
+; Pearson hashing is used to create hash values.
 ;
-; The symbols are stored in 256 separate "buckets", one for each
-; possible checksum value. Each bucket is a linked list of 
-; symbols with the same checksum.
+; As the hash function produces an (only) 8-bit value, collisions will happen 
+; quite frequently. Testing shows that the number of collisions per hash value
+; still is reasonable for the purpose of efficient symbol lookup.
 ;
-; A reference to the head of each bucket is stored
-; in the arrays symbol_buckets_bank and symbol_buckets_offset. These
-; arrays are placed in RAM bank BASLOAD_RAM1.
+; Collisions are handled by chaining. Symbols sharing the same hash value
+; are arranged in a linked list, which in the source are referred to as
+; "buckets".
+;
+; The arrays "symbol_bucket_bank" and "symbol_bucket_offset" point to the
+; head of these linked lists. The arrays are stored in RAM bank BASLOAD_RAM1.
+; There is one head pointer for each possible hash value (0..255).
 ; 
-; An entry in the table consists of 32 bytes as described below:
+; An entry in the symbol table consists of 32 bytes as described below:
 ; 
 ; Offset Size Description
-; ------------------------------------------------
+; ------------------------------------------------------
 ; 00     26   Symbol name
-; 26     01   Symbol name length
-; 27     01   Next symbol, bank (0=null)
-; 28     01   Next symbol, offset
-; 29     01   Symbol type
-; 30     02   Value
+; 27     01   Symbol name length
+; 28     01   Next symbol, bank (0=null)
+; 29     01   Next symbol, offset
+; 30     02   Value (line number or short variable name)
 ;
 ; You can convert from offset to memory address as follows: 
 ; address = offset * 32 + $A000
 ;
-; The table may hold a maximum of 2,048 symbols. X16 Basic
-; supports a maximum of 950 different variable names that
-; may be freely used.
+; The table may hold a maximum of 2,048 symbols.
+
+; Exports needed only for unit testing
+.export symbol_init, symbol_add, symbol_find, symbol_buckets_bank, symbol_buckets_offset, file_buf, line_dstlin, symbol_next_bank, symbol_next_offset, symbol_pointer
 
 ; Banked RAM usage
 SYMBOL_FIRST_BANK = 2
@@ -67,17 +70,18 @@ SYMBOL_LAST_BANK = 9
 ; Symbol table entry fields
 SYMBOL_NAME = 0
 SYMBOL_LEN = 26
-SYMBOL_NEXT_BANK = 27
-SYMBOL_NEXT_OFFSET = 28
-SYMBOL_TYPE = 29
+SYMBOL_TYPE = 27
+SYMBOL_NEXT_BANK = 28
+SYMBOL_NEXT_OFFSET = 29
 SYMBOL_VALUE = 30
 
 ; Symbol entry types
 SYMBOLTYPE_LABEL = 0
-SYMBOLTYPE_FLOAT = 1
-SYMBOLTYPE_INT = 2
-SYMBOLTYPE_STRING = 3
+SYMBOLTYPE_VARIABLE = 1
+SYMBOL_TOKEN = 2
+SYMBOL_RESERVED_VAR = 3
 
+; Variables
 .ZEROPAGE
     symbol_pointer: .res 2
 
@@ -90,9 +94,6 @@ SYMBOLTYPE_STRING = 3
     symbol_buckets_bank: .res $100
     symbol_buckets_offset: .res $100
 .CODE
-
-; Exports needed only for unit testing
-.export symbol_init, symbol_add, symbol_find, symbol_buckets_bank, symbol_buckets_offset, file_buf, line_dstlin, symbol_next_bank, symbol_next_offset, symbol_pointer
 
 ;******************************************************************************
 ;Function name: symbol_init
@@ -122,6 +123,25 @@ SYMBOLTYPE_STRING = 3
     sta symbol_next_var
     lda #0
     sta symbol_next_var+1
+
+    ; Insert reserved variables ST and TI in symbol table
+    lda #'s'
+    sta file_buf
+    lda #'t'
+    sta file_buf+1
+    ldx #0
+    ldy #1
+    lda #SYMBOL_RESERVED_VAR
+    jsr symbol_add
+
+    lda #'t'
+    sta file_buf
+    lda #'i'
+    sta file_buf+1
+    ldx #0
+    ldy #1
+    lda #SYMBOL_RESERVED_VAR
+    jsr symbol_add
     
     rts
 .endproc
@@ -133,10 +153,10 @@ SYMBOLTYPE_STRING = 3
 ;               Y   Index in file_buf where symbol ends
 ;               A   Symbol type
 ;                   0: Label
-;                   1: Variable (float)
-;                   2: Variable (int)
-;                   3: Variable (string)
-;               C   1: Skip duplicate symbol check
+;                   1: Variable
+;                   2: BASIC command/token
+;                   3: Reserved variable
+;               C   1: Skip duplicate check
 ;Output.......: X/Y Symbol value (low/high byte)
 ;               A   0: OK
 ;Error........: A   1: Duplicate symbol
@@ -172,19 +192,19 @@ SYMBOLTYPE_STRING = 3
     lda #3
     rts
 
-    ; Calculate symbol name checksum
-:   stz cs
+    ; Calculate symbol name hash value
+:   lda #0
     ldx index1
-:   clc
-    lda file_buf,x
-    adc cs
-    sta cs
+:   eor file_buf,x
+    tay
+    lda pearson_tbl,y
     cpx index2
     beq :+
     inx
     bra :-
+:   sta hash
 
-:   ; Calculate len
+    ; Calculate len
     sec
     lda index2
     sbc index1
@@ -194,7 +214,7 @@ SYMBOLTYPE_STRING = 3
     ; Check if bucket is empty
     lda #BASLOAD_RAM1
     sta RAM_SEL
-    ldx cs
+    ldx hash
     lda symbol_buckets_bank,x
     bne bucket_not_empty
 
@@ -289,12 +309,12 @@ set_values:
     lda type
     sta (symbol_pointer),y
 
-    ; Check if symbol type is Label or Variable
-    ldy #SYMBOL_VALUE
-    cmp #0
+    ; Check if symbol type
+    cmp #SYMBOLTYPE_LABEL
     bne variable
 
     ; New item is a label: Set value to current line number
+    ldy #SYMBOL_VALUE
     lda line_dstlin
     sta (symbol_pointer),y
     tax
@@ -302,10 +322,14 @@ set_values:
     lda line_dstlin+1
     sta (symbol_pointer),y
     tay
-    bra exit
+    jmp exit
 
 variable:
+    cmp #SYMBOLTYPE_VARIABLE
+    bne reserved_var
+
     ; New item is a variable: Set value to next available variable name
+    ldy #SYMBOL_VALUE
     lda symbol_next_var
     sta (symbol_pointer),y
     pha
@@ -373,6 +397,37 @@ chk_var_loop:
 
 :   ; Pull symbol low value from stack
     plx
+    bra exit
+
+reserved_var:
+    cmp #SYMBOL_RESERVED_VAR
+    bne token
+
+    ldy #SYMBOL_TYPE
+    lda #SYMBOLTYPE_VARIABLE
+    sta (symbol_pointer),y
+
+    ldy #SYMBOL_VALUE
+    ldx index1
+:   lda file_buf,x
+    sta (symbol_pointer),y
+    cpx index2
+    beq :+
+    inx
+    iny
+    cpy #SYMBOL_VALUE+2
+    bne :-
+:   ldx #0
+    ldy #0
+    bra exit
+
+token:
+    ldy #SYMBOL_VALUE
+    lda token_next_id
+    sta (symbol_pointer),y
+    iny
+    lda token_next_id+1
+    sta (symbol_pointer),y
 
 exit:
     ; Select next offset
@@ -389,7 +444,7 @@ exit:
     index1: .res 1
     index2: .res 2
     type: .res 1
-    cs: .res 1
+    hash: .res 1
     len: .res 1
 .CODE
 .endproc
@@ -402,9 +457,8 @@ exit:
 ;Output.......: X,Y Value (low, high byte)
 ;               A   Symbol type
 ;                   0: Label
-;                   1: Variable (float)
-;                   2: Variable (int)
-;                   3: Variable (string)
+;                   1: Variable
+;                   2: BASIC token
 ;Error........: C=1 if label not found
 .proc symbol_find
     ; Store input params
@@ -418,23 +472,23 @@ exit:
     ina
     sta len
     
-    ; Calculate symbol name checksum
-    stz cs
+    ; Calculate symbol name hash value
+    lda #0
     ldx index1
-:   clc
-    lda file_buf,x
-    adc cs
-    sta cs
+:   eor file_buf,x
+    tay
+    lda pearson_tbl,y
     cpx index2
     beq :+
     inx
     bra :-
+:   sta hash
 
     ; Check if bucket head is NULL
-:   lda #BASLOAD_RAM1               ; Select RAM bank 1
+    lda #BASLOAD_RAM1               ; Select RAM bank 1
     sta RAM_SEL
     
-    ldx cs
+    ldx hash
     lda symbol_buckets_bank,x
     beq not_found                   ; Bucket head was null => symbol doesn't exist
 
@@ -507,7 +561,7 @@ not_found:
 .segment "VARS"
     index1: .res 1
     index2: .res 2
-    cs: .res 1
+    hash: .res 1
     len: .res 1
 .CODE
 

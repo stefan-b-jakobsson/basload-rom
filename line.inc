@@ -13,6 +13,7 @@ LINE_HEXNUM = 14
 LINE_BINNUM = 16
 LINE_DECNUM = 18
 LINE_SYMBOL = 20
+LINE_DATA = 22
 
 ; Variables
 .ZEROPAGE
@@ -170,7 +171,7 @@ label:
     ldx symbol_start
     ldy index_src
     dey
-    jsr token_get
+    jsr symbol_find
     bcc symbol_end
 
     ldx symbol_start
@@ -217,6 +218,7 @@ next:
     stz index_src
     stz index_dst
     stz state
+    stz last_token
     
     ; Option: Remarks on/off, default is on
     lda #1
@@ -392,9 +394,10 @@ default:
     ; BASIC operators, eg. +, -, *, / - Tokenized as commands
 :   ldx index_src
     ldy index_src
-    jsr token_get
+    jsr symbol_find
     bcs :+
     
+    txa
     ldy index_dst
     sta (line_code),y
     inc index_dst
@@ -506,68 +509,43 @@ symbol:
 :   cmp #'.'
     beq symbol_cont
 
-    ; A symbol ended by a colon is a possible label declaration - needs further checking
-    cmp #':'
-    beq label_declaration
-
     ; Decimal numbers are allowed in symbol names, continue if found
     cmp #'0'
-    bcc symbol_other
+    bcc symbol_check1
     cmp #'9'+1
-    bcs symbol_other
+    bcs symbol_check1
 
 symbol_cont:
     ; Continue, get next char
     jmp next
 
-label_declaration:
-    ; Check if the symbol is at the start of the line
-    ldx index_dst
-    bne symbol_other ; It wasn't, so it can't be a label declaration
-
-    ; Check if BASIC command/token
+symbol_check1:
+    ; Check if it's a symbol (including the current char)
     ldx symbol_start
     ldy index_src
-    dey ; Don't include the colon
-    jsr token_get
-    bcs :+ ; C=1, token not found
-    
-    ; It was a BASIC command/token, decrement source index, so that the default handler can process the current char during the next loop
-    dec index_src
-    jmp instoken
-
-:   ; It was a label declaration, let's ignore it in pass 2! Jump to next to ignore the colon as well
-    stz state
-    jmp next
-
-symbol_other:
-    ; Check if it is a BASIC command/token (including the current char)
-    ldx symbol_start
-    ldy index_src
-    jsr token_get
-    bcc instoken ; It was a token, let's insert it
-
-    ; Check if it is a BASIC command/token (not including the current char)
-    ldx symbol_start
-    ldy index_src
-    dey ; Step back to ignore the current char
-    jsr token_get
-    bcs :+ 
-    
-    dec index_src
-    bra instoken
-
-    ; Check if it is a user-defined symbol (not including the current char), previously decleared
-:   ldx symbol_start
-    ldy index_src
-    dey ; Step back to ignore the current char
     jsr symbol_find
-    bcs newvar
+    bcc symbol_found
+
+symbol_check2:
+    dec index_src
+    ldx symbol_start
+    ldy index_src
+    jsr symbol_find
+    bcs newvar ; Previously unknown symbol, treat as new variable
     
+symbol_found:
     cmp #1
     beq insvar
+    cmp #2
+    beq instoken
 
-    ; It's a label, insert its line number
+    ; It's a label, insert its line number, if not at start of line
+    lda index_dst
+    bne :+
+    inc index_src
+    bra :+++
+
+:   lda #0
     jsr util_bin_to_bcd
     jsr util_bcd_to_str
     stx TEMP1
@@ -584,13 +562,12 @@ symbol_other:
     bra :-
 
 :   stz state
-    jmp loop
+    jmp next
 
 newvar:   
     ; The symbol hasn't been decleared. Let's declear it as a new variable
     ldx symbol_start
     ldy index_src
-    dey ; Step back to ignore the current char
     lda #1 ; variable
     jsr symbol_add
 
@@ -612,6 +589,7 @@ insvar:
 
     ; If the current char is $ or %, let's copy it to BASIC memory, otherwise let the default handler process it
     ; A trailing $ or % indicates the type of variable
+    inc index_src
     ldx index_src
     lda file_buf,x
     cmp #'$'
@@ -621,28 +599,53 @@ insvar:
     jmp loop
 
 instoken:
-    ; Insert standard token
+    stx last_token
+    sty last_token
+
+    ; Insert first byte
+    phy
     ldy index_dst
+    txa
     sta (line_code),y
     inc index_dst
     
     ; Insert extended token, if applicable
-    cmp #$ce
-    bne :+
+    pla
+    beq :+
     iny
-    txa
     sta (line_code),y
     inc index_dst
-    bra :++
+    bra :+++
 
-:   cmp #$8f ; REM statement
+:   cpx #$8f ; REM statement
     bne :+
     lda #LINE_REMARK
     sta state
     jmp next
 
+:   cpx #$83 ; DATA statement
+    bne :+
+    lda #LINE_DATA
+    sta state
+    stz quotes_count
+    jmp next
+
 :   stz state
     jmp next
+
+data:
+    tax
+
+    lda quotes_count
+    and #1
+    bne :+
+
+    txa
+    cmp #':'
+    bne :+
+    stz state
+
+:   jmp copy
 
 copy:
     ; Copy current char to BASIC memory
@@ -656,7 +659,7 @@ next:
     jmp loop
 
 jump_table:
-    .word default, remark, string, option1, option2, option3, option4, hexnum, binnum, decnum, symbol
+    .word default, remark, string, option1, option2, option3, option4, hexnum, binnum, decnum, symbol, data
 
 .segment "VARS"
     state: .res 1
@@ -666,5 +669,7 @@ jump_table:
     dp_count: .res 1
     index_dst: .res 1
     remarks_on: .res 1
+    last_token: .res 2
+    quotes_count: .res 1
 .CODE
 .endproc

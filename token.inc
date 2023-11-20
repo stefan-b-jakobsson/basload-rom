@@ -24,7 +24,15 @@
 ;OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ;OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-.export token_init, token_get, token_names, token_addrl_tbl, token_addrh_tbl
+.ZEROPAGE
+    token_ptr: .res 2
+
+.segment "VARS"
+    token_std_head: .res 2
+    token_ext_stmt_head: .res 2
+    token_ext_func_head: .res 2
+    token_next_id: .res 2
+.CODE
 
 ;******************************************************************************
 ;Function name: token_init
@@ -84,19 +92,12 @@
     lda token_std_head+1
     sta token_ptr+1
 
-    lda #<token_names
-    sta TEMP1
-    lda #>token_names
-    sta TEMP1+1
-
     ldx #$ff
     ldy #$ff
-    
-    lda #0
+    lda #$80
+    sta token_next_id
+    stz token_next_id+1
     jsr token_copy
-    tya
-    dey
-    sty token_std_last
 
     ; Copy extended statement table part 1
     ldx token_ext_stmt_head
@@ -105,8 +106,13 @@
     stx token_ptr+1
     ldx token_ext_func_head
     ldy token_ext_func_head+1
+
+    lda #$ce
+    sta token_next_id
+    lda #$80
+    sta token_next_id+1
+    
     jsr token_copy
-    tya
 
     ; Copy extended statement table part 2
     inc token_ptr
@@ -116,16 +122,15 @@
 :   ldx token_ext_func_head
     ldy token_ext_func_head+1
     jsr token_copy
-    tya
-    dey
-    sty token_ext_stmt_last
 
     ; Copy extended function table
     ldx #$ff
     ldy #$ff
+    lda #$ce
+    sta token_next_id
+    lda #$d0
+    sta token_next_id+1
     jsr token_copy
-    dey
-    sty token_ext_func_last
     rts
     
 error:
@@ -197,7 +202,6 @@ notfound:
 ;               the specified address limit
 ;Input........: X           Address where to stop copy (low)
 ;               Y           Address where to stop copy (high)
-;               A           Index of first token
 ;               token_ptr   Pointer to BASIC ROM bank where to copy from
 ;               TEMP1       Pointer to RAM bank 1 where to copy to
 ;Output.......: Y           Index of next token
@@ -206,53 +210,39 @@ notfound:
     ; Save input
     stx address
     sty address+1
-    sta index
 
     ; Select RAM bank
     lda #1
     sta RAM_SEL
 
-    ; Copy tokens
+    ; Add to symbol table
     ldy #0
-    stz cs
 loop:
     bridge_fetch_basrom_index
     beq exit
-    sta (TEMP1),y
+    bmi :+
+    sta file_buf,y
     iny
-    pha
-    clc
-    and #%01111111
-    adc cs
-    sta cs
-    pla
-    bpl loop
+    bra loop
+:   and #%01111111
+    sta file_buf,y
 
-token_end:
     sty len
-    tya
-    ldy index
-
-    sta token_len_tbl,y             ; Store token len in table
-    
-    lda cs
-    sta token_cs_tbl,y              ; Store token checksum in table
-    clc
-    lda TEMP1
-    sta token_addrl_tbl,y           ; Store token addressL in table
-    adc len                         ; Move input pointer to next token
-    sta TEMP1
-    lda TEMP1+1
-    sta token_addrh_tbl,Y           ; Store token AddressH in table
-    adc #0                          ; Move input pointer to next token
-    sta TEMP1+1
+    inc len
+    ldx #0
+    lda #2
+    sec
+    jsr symbol_add
 
 next:
-    inc index                       ; Prepare for next token
-    ldy #0
+    lda token_next_id
+    cmp #$ce
+    beq :+
+    inc token_next_id
+    bra :++
+:   inc token_next_id+1
 
-    stz cs
-
+:   ldy #0
     clc                             ; Move output pointer to next token
     lda token_ptr
     adc len
@@ -270,184 +260,10 @@ next:
     bcc loop
 
 exit:
-    ; Exit and return index in Y register
-    ldy index
     rts
 
 .segment "VARS"
     address: .res 2
-    index: .res 1
     len: .res 1
-    cs: .res 1
 .CODE
 .endproc
-
-;******************************************************************************
-;Function name: token_get
-;Purpose......: Returns token ID from a string
-;Input........: X   Start index in file_buf
-;               Y   End index in file_buf
-;Output.......: A   Token
-;               X   Extended token
-;Error........: C = 1 if token not found
-.proc token_get
-    ; Store input
-    stx index1
-    sty index2
-
-    ; Calculate len
-    sec
-    tya
-    sbc index1
-    ina
-    sta len
-
-    ; Calculate checksum
-    stz cs
-    ldx index1
-:   lda file_buf,x
-    cmp #$41
-    bcc :+
-    and #%11011111
-:   clc
-    adc cs
-    sta cs
-    cpx index2
-    beq :+
-    inx
-    bra :--
-
-    ; Select RAM bank 1
-:   lda #1
-    sta RAM_SEL
-
-    ; Look for a matching token
-    stz token_index
-loop:
-    ldx token_index
-
-    lda token_cs_tbl,x
-    cmp cs
-    bne nomatch
-
-    lda token_len_tbl,x
-    cmp len
-    bne nomatch
-
-    ldy #0
-    lda token_addrl_tbl,x
-    sta TEMP1
-    lda token_addrh_tbl,x
-    sta TEMP1+1
-
-    ldx index1
-
-:   lda (TEMP1),y
-    bmi eot
-    sta temp
-    lda file_buf,x
-    cmp #$40
-    bcc :+
-    and #%11011111
-:   cmp temp
-    bne nomatch
-    cpx index2
-    bcs nomatch
-    iny
-    inx
-    bra :--
-
-eot:
-    and #%01111111
-    sta temp
-    lda file_buf,x
-    cmp #$40
-    bcc :+
-    and #%11011111
-:   cmp temp
-    bne nomatch
-
-match:
-    ldx token_index
-    cpx token_std_last
-    bcc std
-    beq std
-
-ext:
-    cpx token_ext_stmt_last
-    bcc extstmt
-    beq extstmt
-
-extfunc:
-    txa
-    sec
-    sbc token_ext_stmt_last
-    dea
-    clc
-    adc #$d0
-    tax
-    lda #$ce
-    clc
-    rts
-
-extstmt:
-    txa
-    sec 
-    sbc token_std_last
-    dea
-    clc
-    adc #$80
-    tax
-    lda #$ce
-    clc
-    rts
-
-std:
-    txa
-    clc
-    adc #$80
-    ldx #0
-
-    clc
-    rts
-    
-nomatch:
-    inc token_index
-    cpx token_ext_func_last
-    beq :+
-    bcs notfound
-:   jmp loop
-
-notfound:
-    sec
-    rts
-
-.segment "VARS"
-    index1: .res 1
-    index2: .res 1
-    cs: .res 1
-    len: .res 1
-    token_index: .res 1
-    temp: .res 1
-.CODE
-.endproc
-
-.ZEROPAGE
-    token_ptr: .res 2
-
-.segment "VARS"
-    token_std_head: .res 2
-    token_ext_stmt_head: .res 2
-    token_ext_func_head: .res 2
-
-    token_std_last: .res 1
-    token_ext_stmt_last: .res 1
-    token_ext_func_last: .res 1
-
-.segment "RAM1"
-    token_cs_tbl: .res $100
-    token_len_tbl: .res $100
-    token_addrl_tbl: .res $100
-    token_addrh_tbl: .res $100
-    token_names: .res $400
-.CODE

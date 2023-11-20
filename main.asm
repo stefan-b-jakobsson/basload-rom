@@ -186,3 +186,4 @@ exit:
 .include "msg.inc"
 .include "loader.inc"
 .include "retval.inc"
+.include "pearson.inc"
