@@ -7,13 +7,11 @@ LINE_REMARK = 2
 LINE_STRING = 4
 LINE_OPTION_1 = 6
 LINE_OPTION_2 = 8
-LINE_OPTION_3 = 10
-LINE_OPTION_4 = 12
-LINE_HEXNUM = 14
-LINE_BINNUM = 16
-LINE_DECNUM = 18
-LINE_SYMBOL = 20
-LINE_DATA = 22
+LINE_HEXNUM = 10
+LINE_BINNUM = 12
+LINE_DECNUM = 14
+LINE_SYMBOL = 16
+LINE_DATA = 18
 
 ; Variables
 .ZEROPAGE
@@ -427,13 +425,6 @@ option1:
 option2:
     ; TODO: Not yet implemented
 
-option3:
-    ; TODO: Not yet implemented
-
-option4:
-    ; TODO: Not yet implemented
-    jmp next
-
 hexnum:
     ; 0..9?
     cmp #'0'
@@ -600,7 +591,7 @@ insvar:
 
 instoken:
     stx last_token
-    sty last_token
+    sty last_token+1
 
     ; Insert first byte
     phy
@@ -636,16 +627,21 @@ instoken:
 data:
     tax
 
-    lda quotes_count
+    cmp #34 ; Double quote?
+    bne :+
+    inc quotes_count
+    bra :++
+
+:   lda quotes_count
     and #1
     bne :+
 
-    txa
-    cmp #':'
+    cpx #':'
     bne :+
     stz state
 
-:   jmp copy
+:   txa
+    jmp copy
 
 copy:
     ; Copy current char to BASIC memory
@@ -659,7 +655,7 @@ next:
     jmp loop
 
 jump_table:
-    .word default, remark, string, option1, option2, option3, option4, hexnum, binnum, decnum, symbol, data
+    .word default, remark, string, option1, option2, hexnum, binnum, decnum, symbol, data
 
 .segment "VARS"
     state: .res 1
