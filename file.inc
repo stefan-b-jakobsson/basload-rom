@@ -30,6 +30,7 @@
     file_buf: .res 256          ;Input buffer
     file_name: .res 256         ;File name
     file_len: .res 1            ;Length of file name
+    prevchar: .res 1
 .CODE
 
 .export file_buf
@@ -75,6 +76,8 @@
     ldx #1
     bridge_call
 
+    stz prevchar
+
     lda #0
     rts
 
@@ -116,9 +119,16 @@ loop:
     ;Read char from file
     bridge_setaddr KERNAL_CHRIN
     bridge_call
+    ldx prevchar
+    sta prevchar
+
     cmp #10                 ;LF
-    beq eol
-    cmp #13                 ;CR
+    bne :+
+    cpx #13
+    beq next
+    bra eol
+
+:   cmp #13                 ;CR
     beq eol
 
     ;Check line length
@@ -163,6 +173,7 @@ store_char:
     sta file_buf,x
     inc index
 
+next:
     ;Read file status
     bridge_setaddr KERNAL_READST
     bridge_call
