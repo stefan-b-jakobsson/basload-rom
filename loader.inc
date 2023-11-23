@@ -35,7 +35,7 @@
     lda #0
     ldx #<msg_ok
     ldy #>msg_ok
-    clc
+    sec
     jsr response_set
     
     ;Prepare pass 1

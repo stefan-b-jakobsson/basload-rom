@@ -454,12 +454,16 @@ default:
     ldy index_dst
     sta (line_code),y
     inc index_dst
-    jmp next
-    
+    jmp next    
+
     ; Other input
 :   ldx index_src
     lda file_buf,x
-    jmp copy
+    cmp #':'
+    bne :+
+    stz last_token
+    stz last_token+1
+:   jmp copy
 
 remark:
     ldx remarks_on
