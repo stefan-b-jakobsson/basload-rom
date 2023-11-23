@@ -111,6 +111,7 @@ err:
 ;               A = 1 if OK and EOF
 ;Errors.......: A = 2 if error reading line, call function "file_status" to
 ;               read the error code and message
+;               A = 3 if line is equal to or greater than 250 characters
 .proc file_readln
     stz index
     stz quotes
@@ -135,11 +136,8 @@ loop:
     ldx index
     cpx #250
     bcc :+
-    ldx #<msg_line_too_long
-    ldy #>msg_line_too_long
-    lda #RESPONSE_LINE_TOO_LONG
-    jsr response_set
-    lda #2
+
+    lda #3
     rts
 
 :   ;Check quote
@@ -319,9 +317,10 @@ err:
     ;Open file
     bridge_setaddr KERNAL_OPEN
     bridge_call
-    bcs err
+    bcc :+
+    jmp err
 
-    bridge_setaddr KERNAL_CHKIN
+:   bridge_setaddr KERNAL_CHKIN
     ldx #15
     bridge_call
 
@@ -329,21 +328,25 @@ loop:
     ;Read char
     bridge_setaddr KERNAL_CHRIN
     bridge_call
+    
+    cmp #13
+    beq :+
+
     ldx index
     sta file_buf,x
     inc index
 
     ;Read file status
-    bridge_setaddr KERNAL_READST
+:   bridge_setaddr KERNAL_READST
     bridge_call
     beq loop
 
-    ;Set NULL at end of buffer
+close:
+    ;Terminate string
     ldx index
     lda #0
     sta file_buf,x
 
-    ;Close file
     bridge_setaddr KERNAL_CLOSE
     lda #15
     bridge_call
@@ -396,6 +399,7 @@ err:
     tay
     lda file_ioerr_L,x
     tax
+    sec
     lda #RESPONSE_IO_ERROR
     jsr response_set
 
@@ -410,6 +414,7 @@ err:
     ldx #<(file_buf)        ;Print disk status
     ldy #>(file_buf)
     lda #RESPONSE_DISK_ERROR
+    sec
     jsr response_set
 
 :   rts

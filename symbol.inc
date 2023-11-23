@@ -26,19 +26,19 @@
 
 ; Symbol table layout
 ; -------------------
-; In this code, symbols refer both to label and variable names. The symbol
-; table data is stored in RAM banks SYMBOL_FIRST_BANK to
+; In this code, symbols refer to BASIC commands, labels and variables. 
+; The symbol table data is stored in RAM banks SYMBOL_FIRST_BANK to
 ; SYMBOL_LAST_BANK.
 ; 
 ; The symbols are kept in a hash map, where symbol names are used as keys.
 ; Pearson hashing is used to create hash values.
 ;
-; As the hash function produces an (only) 8-bit value, collisions will happen 
-; quite frequently. Testing shows that the number of collisions per hash value
+; As the hash function only produces an 8-bit value, collisions will happen 
+; frequently. Testing shows that the number of collisions per hash value
 ; still is reasonable for the purpose of efficient symbol lookup.
 ;
 ; Collisions are handled by chaining. Symbols sharing the same hash value
-; are arranged in a linked list, which in the source are referred to as
+; are arranged in linked lists, which in the source are referred to as
 ; "buckets".
 ;
 ; The arrays "symbol_bucket_bank" and "symbol_bucket_offset" point to the
@@ -50,7 +50,8 @@
 ; Offset Size Description
 ; ------------------------------------------------------
 ; 00     26   Symbol name
-; 27     01   Symbol name length
+; 26     01   Symbol name length
+; 27     01   Symbol type
 ; 28     01   Next symbol, bank (0=null)
 ; 29     01   Next symbol, offset
 ; 30     02   Value (line number or short variable name)
@@ -60,7 +61,7 @@
 ;
 ; The table may hold a maximum of 2,048 symbols.
 
-; Exports needed only for unit testing
+; Exports needed for unit testing
 .export symbol_init, symbol_add, symbol_find, symbol_buckets_bank, symbol_buckets_offset, file_buf, line_dstlin, symbol_next_bank, symbol_next_offset, symbol_pointer
 
 ; Banked RAM usage
@@ -74,6 +75,7 @@ SYMBOL_TYPE = 27
 SYMBOL_NEXT_BANK = 28
 SYMBOL_NEXT_OFFSET = 29
 SYMBOL_VALUE = 30
+SYMBOL_MAXLEN = 26
 
 ; Symbol entry types
 SYMBOLTYPE_LABEL = 0
@@ -124,7 +126,19 @@ SYMBOL_RESERVED_VAR = 3
     lda #0
     sta symbol_next_var+1
 
-    ; Insert reserved variables ST and TI in symbol table
+    ; Add ? as PRINT statement
+    lda #'?'
+    sta file_buf
+    ldx #0
+    ldy #0
+
+    lda #$99
+    sta token_next_id
+    stz token_next_id+1
+    lda #SYMBOL_TOKEN
+    jsr symbol_add
+
+    ; Add reserved variables ST and TI to the symbol table
     lda #'s'
     sta file_buf
     lda #'t'
@@ -144,6 +158,9 @@ SYMBOL_RESERVED_VAR = 3
     jsr symbol_add
     
     rts
+
+PRINT_TOKEN:
+    .byt $99, $00
 .endproc
 
 ;******************************************************************************
@@ -155,13 +172,14 @@ SYMBOL_RESERVED_VAR = 3
 ;                   0: Label
 ;                   1: Variable
 ;                   2: BASIC command/token
-;                   3: Reserved variable
+;                   3: Reserved variable, stored as type 1=variable
 ;               C   1: Skip duplicate check
 ;Output.......: X/Y Symbol value (low/high byte)
 ;               A   0: OK
 ;Error........: A   1: Duplicate symbol
 ;                   2: Symbol table full
 ;                   3: No available variable name
+;                   4: Symbol name too long
 .proc symbol_add
     ; Store input
     stx index1
@@ -210,9 +228,13 @@ SYMBOL_RESERVED_VAR = 3
     sbc index1
     inc
     sta len
+    cmp #SYMBOL_MAXLEN+1
+    bcc :+
+    lda #4
+    rts
 
     ; Check if bucket is empty
-    lda #BASLOAD_RAM1
+:   lda #BASLOAD_RAM1
     sta RAM_SEL
     ldx hash
     lda symbol_buckets_bank,x

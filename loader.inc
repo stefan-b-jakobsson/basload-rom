@@ -35,6 +35,7 @@
     lda #0
     ldx #<msg_ok
     ldy #>msg_ok
+    clc
     jsr response_set
     
     ;Prepare pass 1
@@ -44,28 +45,36 @@
 
     jsr file_open
     cmp #0
-    bne err1
+    bne err1a
 
     ;Read and process each line
 :   jsr loader_readln
     cmp #1
     beq eof1
     cmp #2
-    beq err1
+    beq err1a
+    cmp #3
+    beq err1b
 
     jsr line_pass1
-    cmp #0
-    beq :-
+    bcc :-
 
-err1:
+err1a:
     jsr file_close
     jsr file_set_disk_status
-    jmp line_init
+    rts
+
+err1b:
+    jsr file_close
+    clc
+    ldx #<msg_line_too_long
+    ldy #>msg_line_too_long
+    lda #RESPONSE_LINE_TOO_LONG
+    jmp response_set
 
 eof1:
     jsr line_pass1
-    cmp #0
-    bne err1
+    bcs err1a
     
     ;Prepare pass 2
     jsr line_init
@@ -80,20 +89,19 @@ pass2_loop:
     cmp #1
     beq eof2
     cmp #2
-    beq err2
+    bcs err2
 
     jsr line_pass2
-    beq pass2_loop
+    bcc pass2_loop
 
 err2:
     jsr file_close
     jsr file_set_disk_status
-    jmp line_init
+    rts
 
 eof2:
     jsr line_pass2
-    cmp #0
-    bne err2
+    bcs err2
 
     ;We're done
     jsr file_close
@@ -117,17 +125,11 @@ eof2:
 ;Purpose......: Reads one line from the current input source and stores it
 ;               into file_buffer
 ;Input........: Nothing
-;Output.......: Nothing
-;Errors.......: Nothing
+;Output.......: A = 0 if OK but not EOF
+;               A = 1 if OK and EOF
+;Errors.......: A = 2 if error reading line
+;               A = 3 if line longer than 250 characters
 .proc loader_readln
     ;For now there is only one possible input source
     jmp file_readln
 .endproc
-
-header: 
-    .byt "basload symbol file",10,10,10
-    .byt "labels",10
-    .byt "======",10,10
-    .byt "------------------------------------------------",10
-    .byt "src ln #  dst ln #   name",10
-    .byt "------------------------------------------------",10,0

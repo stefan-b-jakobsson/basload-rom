@@ -26,9 +26,10 @@
 
 msg_ok: .byt "compile successful",0
 msg_line_too_long: .byt "line too long in ", 0
-msg_duplicate_labels: .byt "duplicate label in ", 0
-msg_label_too_long: .byt "warn: long label in ", 0
+msg_duplicate_symbols: .byt "duplicate symbol in ", 0
+msg_symbol_too_long: .byt "symbol too long in ", 0
 msg_mem_full: .byt "symbol table full in ", 0
+msg_out_of_var_names: .byt "out of variable names", 0
 msg_label_expected: .byt "label not found in ", 0
-msg_line_num_overflow: .byt "line number overflow",0
+msg_line_num_overflow: .byt "line number overflow in ",0
 msg_parse_error: .byt "parse error in ", 0

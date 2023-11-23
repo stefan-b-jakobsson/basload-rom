@@ -57,8 +57,9 @@ LINE_DATA = 18
 ;Purpose......: Pass 1; looks for label defintions and stores them in
 ;               the symbol table
 ;Input........: file_buf    A line of source code, NULL terminated
-;Output.......: A = 0 if OK
-;Errors.......: A = 1 if error occured
+;Output.......: Nohting
+;Error........: C=1 if errro occured
+
 .proc line_pass1
     ; Init
     stz non_whitespace_count
@@ -73,10 +74,35 @@ LINE_DATA = 18
     bne :+
     inc line_srclin+2
 
+    ; Check source line overflow
+:   lda line_srclin
+    ora line_srclin+1
+    ora line_srclin+2
+    bne :+
+    ldx #<msg_line_num_overflow
+    ldy #>msg_line_num_overflow
+    lda #RESPONSE_SRC_LINE_NUM_OVF
+    clc
+    jsr response_set
+    sec
+    rts
+
     ; Increment destination line
 :   inc line_dstlin
-    bne loop
+    bne :+
     inc line_dstlin+1
+
+    ; Check destination line overflow
+:   lda line_dstlin
+    ora line_dstlin+1
+    bne loop
+    ldx #<msg_line_num_overflow
+    ldy #>msg_line_num_overflow
+    lda #RESPONSE_DST_LINE_NUM_OVF
+    clc
+    jsr response_set
+    sec
+    rts
 
 loop:
     ; Get next char
@@ -98,8 +124,8 @@ eol:
     dec line_dstlin+1
 :   dec line_dstlin
 
-    ; Set response value, 0 = OK
-:   lda #0
+    ; Set response value, C=0 => OK
+:   clc
     rts
 
 switch_state:
@@ -170,15 +196,25 @@ label:
     ldy index_src
     dey
     jsr symbol_find
-    bcc symbol_end
+    bcc symbol_dup
 
     ldx symbol_start
     ldy index_src
     lda #0
     dey
+    clc
     jsr symbol_add
     stz state
     jmp next
+
+symbol_dup:
+    ldx #<msg_duplicate_symbols
+    ldy #>msg_duplicate_symbols
+    lda #RESPONSE_DUPLICATE_SYMBOL
+    clc
+    jsr response_set
+    sec
+    rts
 
 symbol_end:
     inc index_dst
@@ -208,8 +244,9 @@ next:
 ;Purpose......: Load pass 2; tokenizes the source code and replaces long
 ;               variable names with short names supported by BASIC v 2
 ;Input........: file_buf    A line of source code, NULL terminated
-;Output.......: A = 0 if OK
-;Errors.......: A = 1 if error occured
+;Output.......: Nothing
+;Output.......: Nohting
+;Error........: C=1 if errro occured
 .proc line_pass2
     ; Init
     stz non_whitespace_count
@@ -303,8 +340,8 @@ eol:
     sta (line_meta),y
 
 exit:
-    ; Exit with status 0 = OK
-    lda #0
+    ; Exit with status C=0 => OK
+    clc
     rts
 
 switch_state:
@@ -528,10 +565,11 @@ symbol_found:
     cmp #1
     beq insvar
     cmp #2
-    beq instoken
+    bne :+ 
+    jmp instoken
 
     ; It's a label, insert its line number, if not at start of line
-    lda index_dst
+:   lda index_dst
     bne :+
     inc index_src
     bra :+++
@@ -561,7 +599,21 @@ newvar:
     ldy index_src
     lda #1 ; variable
     jsr symbol_add
-
+    cmp #0
+    beq insvar
+    cmp #1
+    bne :+
+    jmp line_duplicate_symbols
+:   cmp #2
+    bne :+
+    jmp line_symbol_table_full
+:   cmp #3
+    bne :+
+    jmp line_out_of_var_names
+:   cmp #4
+    bne insvar
+    jmp line_symbol_too_long
+    
 insvar:
    ; Store variable value to BASIC memory
     phy
@@ -668,4 +720,48 @@ jump_table:
     last_token: .res 2
     quotes_count: .res 1
 .CODE
+.endproc
+
+.proc line_duplicate_symbols
+    ldx #<msg_duplicate_symbols
+    ldy #>msg_duplicate_symbols
+    lda #RESPONSE_DUPLICATE_SYMBOL
+    clc
+    jsr response_set
+    
+    sec
+    rts
+.endproc
+
+.proc line_symbol_table_full
+    ldx #<msg_mem_full
+    ldy #>msg_mem_full
+    lda #RESPONSE_SYMTBL_FULL
+    clc
+    jsr response_set
+    
+    sec
+    rts
+.endproc
+
+.proc line_out_of_var_names
+    ldx #<msg_out_of_var_names  
+    ldy #>msg_out_of_var_names
+    lda #RESPONSE_OUTOFVARNAMES
+    clc
+    jsr response_set
+    
+    sec
+    rts
+.endproc
+
+.proc line_symbol_too_long
+    ldx #<msg_symbol_too_long
+    ldy #>msg_symbol_too_long
+    lda #RESPONSE_SYMBOL_TOO_LONG
+    clc
+    jsr response_set
+    
+    sec
+    rts
 .endproc
