@@ -648,9 +648,22 @@ insvar:
     ; Clear state
     stz state
 
+    ; Check if last token was GOTO or GOSUB => Error
+    lda last_token
+    cmp #$89
+    beq :+
+    cmp #$8d
+    bne :++
+
+:   ldx #<msg_label_expected
+    ldy #>msg_label_expected
+    lda #RESPONSE_MISSING_LABEL
+    clc
+    jmp response_set 
+
     ; If the current char is $ or %, let's copy it to BASIC memory, otherwise let the default handler process it
     ; A trailing $ or % indicates the type of variable
-    inc index_src
+:   inc index_src
     ldx index_src
     lda file_buf,x
     cmp #'$'
