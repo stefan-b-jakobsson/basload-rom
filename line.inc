@@ -151,12 +151,14 @@ default:
     
     ; Symbol start?
 :   cmp #'a'
-    bcc fake_copy
-    cmp #'z'+1
-    bcs fake_copy
+    bcs :+
+    jmp fake_copy
+:   cmp #'z'+1
+    bcc :+
+    jmp fake_copy
 
     ; Yes it's a symbol
-    stx symbol_start
+:   stx symbol_start
     lda #LINE_SYMBOL
     sta state
     jmp next
@@ -204,6 +206,22 @@ label:
     dey
     clc
     jsr symbol_add
+    cmp #0
+    beq label2
+    cmp #1
+    bne :+
+    jmp line_duplicate_symbols
+:   cmp #2
+    bne :+
+    jmp line_symbol_table_full
+:   cmp #3
+    bne :+
+    jmp line_out_of_var_names
+:   cmp #4
+    bne label2
+    jmp line_symbol_too_long
+
+label2:
     stz state
     jmp next
 
@@ -747,7 +765,7 @@ jump_table:
 .proc line_out_of_var_names
     ldx #<msg_out_of_var_names  
     ldy #>msg_out_of_var_names
-    lda #RESPONSE_OUTOFVARNAMES
+    lda #RESPONSE_OUT_OF_VAR_NAMES
     clc
     jsr response_set
     
