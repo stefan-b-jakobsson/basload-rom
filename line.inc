@@ -398,7 +398,7 @@ default:
     lda #LINE_OPTION_1
     sta state
     ldx index_src
-    stx symbol_start
+    stx option_start
     jmp next
 
     ; Hexadecimal number - Starts with a $ sign
@@ -480,6 +480,7 @@ string:
 
 option1:
     ; TODO: Not yet implemented
+    jmp next
     
 option2:
     ; TODO: Not yet implemented
@@ -754,6 +755,7 @@ jump_table:
     remarks_on: .res 1
     last_token: .res 2
     quotes_count: .res 1
+    option_start: .res 1
 .CODE
 .endproc
 
@@ -799,4 +801,21 @@ jump_table:
     
     sec
     rts
+.endproc
+
+.proc line_get_option
+    lda file_buf,x
+    cmp #'#'
+    bne :+
+    lda #1
+    rts
+
+:   lda #0
+    rts
+
+.segment "VARS"
+    index1: .res 1
+    index2: .res 1
+    optionnum: .res 1
+.CODE
 .endproc
