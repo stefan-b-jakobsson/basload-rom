@@ -88,12 +88,12 @@ jmp main_entry
 
     ; Copy file name
     ldx KERNAL_R0
-    stx file_len
+    stx file_main_len
     beq no_file
     
 :   dex
     lda $bf00,x
-    sta file_name,x
+    sta file_main_name,x
     cpx #0
     beq init_done
     bra :-
@@ -182,6 +182,7 @@ exit:
 .include "line.inc"
 .include "token.inc"
 .include "symbol.inc"
+.include "option.inc"
 .include "util.inc"
 .include "msg.inc"
 .include "loader.inc"

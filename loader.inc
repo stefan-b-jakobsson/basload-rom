@@ -42,70 +42,58 @@
     jsr symbol_init
     jsr token_init
     jsr line_init
-
+    jsr file_init
+    ldx #<file_main_name
+    ldy #>file_main_name
+    lda file_main_len
     jsr file_open
     cmp #0
-    bne err1a
+    bne exit
 
     ;Read and process each line
-:   jsr loader_readln
-    cmp #1
-    beq eof1
+pass1_loop:   
+    jsr file_readln
     cmp #2
-    beq err1a
-    cmp #3
-    beq err1b
-
+    beq err1
     jsr line_pass1
-    bcc :-
+    bcs err1
+    lda file_cur_num
+    cmp #2
+    bcs pass1_loop
+    bra eof1
 
-err1a:
-    jsr file_close
-    jsr file_set_disk_status
-    rts
-
-err1b:
-    jsr file_close
-    clc
-    ldx #<msg_line_too_long
-    ldy #>msg_line_too_long
-    lda #RESPONSE_LINE_TOO_LONG
-    jmp response_set
+err1:
+    jsr file_set_status_as_response
+    bra exit
 
 eof1:
-    jsr line_pass1
-    bcs err1a
-    
     ;Prepare pass 2
     jsr line_init
-
-    ;Open source file
-    jsr file_close
+    jsr file_init
+    ldx #<file_main_name
+    ldy #>file_main_name
+    lda file_main_len
     jsr file_open
+    cmp #0
+    bne exit
 
     ;Read and process each line again
 pass2_loop:
-    jsr loader_readln
-    cmp #1
-    beq eof2
+    jsr file_readln
     cmp #2
     bcs err2
-
-    jsr line_pass2
-    bcc pass2_loop
-
-err2:
-    jsr file_close
-    jsr file_set_disk_status
-    rts
-
-eof2:
     jsr line_pass2
     bcs err2
+    lda file_cur_num
+    cmp #2
+    bcs pass2_loop
+    bra eof2
 
-    ;We're done
-    jsr file_close
+err2:
+    jsr file_set_status_as_response
+    bra exit
 
+eof2:
     ;Set BASIC pointers
     lda line_code
     sta KERNAL_VARTAB
@@ -116,20 +104,11 @@ eof2:
     sta KERNAL_VARTAB+1
     sta KERNAL_ARYTAB+1
     sta KERNAL_STREND+1
+
+exit:
+    jsr file_init
+    bridge_setaddr KERNAL_CLRCHN
+    bridge_call
     rts
 
-.endproc
-
-;******************************************************************************
-;Function name: loader_readlin
-;Purpose......: Reads one line from the current input source and stores it
-;               into file_buffer
-;Input........: Nothing
-;Output.......: A = 0 if OK but not EOF
-;               A = 1 if OK and EOF
-;Errors.......: A = 2 if error reading line
-;               A = 3 if line longer than 250 characters
-.proc loader_readln
-    ;For now there is only one possible input source
-    jmp file_readln
 .endproc

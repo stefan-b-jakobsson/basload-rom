@@ -99,12 +99,55 @@ line_num:
     adc #0
     sta TEMP2+1
 
+    ; Print file name
+    lda #BASLOAD_RAM1
+    sta RAM_SEL
+    lda file_line_from
+    dea
+    dea
+    sta TEMP1
+    stz TEMP1+1
+    ldx #6
+:   asl TEMP1
+    rol TEMP1+1
+    dex
+    bne :-
+
+    clc
+    lda TEMP1
+    adc #<file_name_tbl
+    sta TEMP1
+    lda TEMP1+1
+    adc #>file_name_tbl
+    sta TEMP1+1
+    
+    ldy #0
+:   lda #BASLOAD_RAM1
+    sta RAM_SEL
+    lda (TEMP1),y
+    stz RAM_SEL
+    beq :+
+    sta (TEMP2),y
+    iny
+    cpy #63
+    bcc :-
+:   lda #':'
+    sta (TEMP2),y
+    iny
+
+    ; Set pointer to end of output string
+    clc
+    tya
+    adc TEMP2
+    sta TEMP2
+    lda TEMP2+1
+    adc #0
+    sta TEMP2+1
+    
     ; Store line number
-    ldx line_srclin
+    jsr file_get_srclin
     stx KERNAL_R1+1
-    ldy line_srclin+1
     sty KERNAL_R2
-    lda line_srclin+2
     sta KERNAL_R2+1
 
     ; Convert line number to string

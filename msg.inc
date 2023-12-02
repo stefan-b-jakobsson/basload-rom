@@ -33,3 +33,5 @@ msg_out_of_var_names: .byt "out of variable names", 0
 msg_label_expected: .byt "label not found in ", 0
 msg_line_num_overflow: .byt "line number overflow in ",0
 msg_parse_error: .byt "parse error in ", 0
+msg_syntax_error: .byt "syntax error in ", 0
+msg_file_error: .byt "file error in ",0

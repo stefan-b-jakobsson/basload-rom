@@ -173,3 +173,195 @@ exit:
     output: .res 9
 .CODE
 .endproc
+
+;******************************************************************************
+;Function name.......: util_str_to_bcd
+;Purpose.............: Converts string to bcd value
+;Input...............: Pointer to null terminated string, X=AddressL, Y=AddressH
+;                      Input beyond 8 digits will be ignored
+;Returns.............: Pointer to 32 bit BCD value, X=AddressL, Y=AddressH
+;Error returns.......: C=1 if invalid input, else C=0
+.proc util_str_to_bcd
+    ;Setup zero page vectors
+    stx util_ptr
+    sty util_ptr+1
+
+    ;Clear output
+    stz bcd_val
+    stz bcd_val+1
+    stz bcd_val+2
+    stz bcd_val+3
+
+;Going arabic. We need to parse from right to left, therefore go to end of string
+    ldy #0
+:   lda (util_ptr),y
+    beq prepare
+    iny
+    bra :-
+
+prepare:
+    cpy #0
+    beq invalid     ;String len = 0 is invalid input
+
+    dey             ;Decrease Y to step back to the last digit. Y was at the terminating null char before this.
+    ldx #0
+
+loop:
+    ;Get input char and subtract 48
+    lda (util_ptr),y
+    sec
+    sbc #48
+    bcc invalid         ;Char was less than 48, exit with error
+    cmp #10
+    bcs invalid         ;Char was greater than 57, exit with error
+    sta bcd_val,x
+    
+    ;Move index to next char, if Y wraps around to $ff we're done
+    dey
+    cpy #$ff
+    beq end
+
+    ;Get input char and subtract 48 as above
+    lda (util_ptr),y
+    sec
+    sbc #48
+    bcc invalid
+    cmp #10
+    bcs invalid
+
+    ;Multiply by 16, to store every other input char in the outout high nibble
+    asl
+    asl
+    asl
+    asl
+    ora bcd_val,x
+    sta bcd_val,x
+    
+    ;Increase output index and decrease input index. Exit if input index=ff
+    inx
+    dey
+    cpy #$ff
+    bne loop
+
+end:
+    ;Default exit
+    clc
+    ldx #<bcd_val
+    ldy #>bcd_val
+    rts
+
+invalid:
+    ;Exit if input value invalid (not only digits in string or zero len string)
+    sec
+    ldx #<bcd_val
+    ldy #>bcd_val
+    rts
+
+.segment "VARS"
+    len: .res 1
+    bcd_val: .res 4
+.CODE
+.endproc
+
+;******************************************************************************
+;Function name.......: util_bcd_to_bin
+;Purpose.............: Converts a BCD value to a binary value
+;Input...............: Pointer to 32 bit BCD value, X=AddressL, Y=AddressH
+;Returns.............: 24 bit binary value, X=low, Y=mid, A=high
+;Error returns.......: None
+;Credits.............: This routine is based on an article by Marvin L. De Jong
+;                      published here: 
+;                      https://www.atarimagazines.com/compute/issue17/221_1_A_GENERAL_PURPOSE_BCD-TO-BINARY_ROUTINE.php
+;                      De Jong was in his turn inspired by the book 
+;                      Microcomputer-Based Design, by John B. Peatman, 
+;                      McGraw Hill, New York, 1977, p 400.
+;
+;                      The technique is based on continuous dividing the input by two and
+;                      storing the remainders as answer. The trick is to adjust the 
+;                      answer by subtracting 3 from each nibble if the highest 
+;                      bit is set. Why does this work?  I guess you have to read 
+;                      those publications.
+.proc util_bcd_to_bin
+    ;Copy input to local variable
+    stx util_ptr
+    sty util_ptr+1
+    ldy #0
+
+:   lda (util_ptr),y
+    sta bcd_val,y
+    iny
+    cpy #5          ;The input is 32 bits = 4 bytes. Thus we've copied all when Y=5
+    bne :-
+    
+    ;Prepare loop
+    ldy #32         ;Output bit count, internally 32 bits, but the function only returns the lowest 24 bits. The highest 8 bits are discarded.
+    ldx #3          ;Byte index (corresponds to 32 bit input, bytes 0 to 3)
+
+    clc             ;Clear carry and push processor status including carry flag to stack
+    php
+
+loop:
+    ;Get processor status from stack. We're really only interested in carry flag
+    plp
+
+    ;Divide by 2, remainder in carry flag
+    ror bcd_val,x
+
+    ;Save processor status including carry flag on stack again
+    php
+
+    ;Adjust high nibble: If bit 7=1 subtract $30; This is the essential "trick" in De Jong's and Peatman's
+    ;above mentioned publications. 
+    bit bcd_val,x
+    bpl :+              ;bpl branches if bit 7 is clear (a positive number)
+    sec
+    lda bcd_val,x
+    sbc #$30
+    sta bcd_val,x
+
+    ;Adjust low nibble: If bit 3=1 subtract $3; The same "trick" but for the low nibble
+:   lda bcd_val,x
+    and #8              ;The bpl op code doesn't work here, checking bit 3 by anding it
+    beq next_byte
+    sec
+    lda bcd_val,x
+    sbc #3
+    sta bcd_val,x
+
+next_byte:
+    dex
+    cpx #$ff
+    bne loop
+
+    ;Reset X for next loop
+    ldx #3
+
+    ;Get C from stack, and rotate to binary output
+    plp
+    ror bin_val+3
+    ror bin_val+2
+    ror bin_val+1
+    ror bin_val
+    
+    ;Prepare stack for next loop, carry not set when we start the loop
+    clc
+    php
+    
+    dey             ;If Y=0 we're done with all 32 bits
+    bne loop
+
+    ;Clean stack
+    plp
+
+    ;Fetch result and exit
+    ldx bin_val
+    ldy bin_val+1
+    lda bin_val+2    
+
+    rts
+
+.segment "VARS"
+    bcd_val: .res 4
+    bin_val: .res 4
+.CODE
+.endproc

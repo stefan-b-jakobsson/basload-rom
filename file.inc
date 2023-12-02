@@ -24,79 +24,199 @@
 ;OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ;OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+.export file_name_tbl
+
 .segment "VARS"
     file_device: .res 1         ;Device number
     file_err: .res 1            ;I/O error code
     file_buf: .res 256          ;Input buffer
-    file_name: .res 256         ;File name
-    file_len: .res 1            ;Length of file name
-    prevchar: .res 1
+    file_main_name: .res 256
+    file_main_len: .res 1       ;Length of file name
+    file_cur_num: .res 1        ;Current file number (2..11)
+    file_lastchar: .res 1       ;Holds last char, needed for CRLF detection
+    file_line_from: .res 1      ;Holds file number used by last invocation of file_readln
+    file_srclin_L: .res 10      ;Source line counter bits 0..7 for file numbers 2-11
+    file_srclin_M: .res 10      ;Source line counter bits 8..15 for file numbers 2-11
+    file_srclin_H: .res 10      ;Source line counter bits 16..23 for file numbers 2-11
+
+.segment "RAM1"
+    file_name_tbl: .res 640    ;Array of open files names (first 63 characters of each file name, NULL terminated)
 .CODE
 
-.export file_buf
+;******************************************************************************
+;Function name: file_init
+;Purpose......: Initializes file functions, amongst other closing files
+;               2 to 11
+;Input........: Nothing
+;Output.......: Nothing
+;Errors.......: Nothing
+.proc file_init
+    ; Set current file number = 1, i.e. one below the first file number we are using
+    lda #1
+    sta file_cur_num
+
+    ; Close files 2 to 11
+    bridge_setaddr KERNAL_CLOSE
+    lda #2
+loop:
+    pha
+    bridge_call
+    pla
+    ina
+    cmp #12
+    bne loop
+
+    ; Clear input channel
+    bridge_setaddr KERNAL_CLRCHN
+    bridge_call
+
+    ; Clear values
+    stz file_err
+    stz file_lastchar
+    rts
+.endproc
 
 ;******************************************************************************
 ;Function name: file_open
-;Purpose......: Opens a source file for reading; before calling, store
-;               file name in variable "file_name", file name length
-;               in variable "file_len", and device number in
-;               variable "file_device". The device defaults to 8 if
-;               you have called the file_init function.
-;Input........: Nothing
-;Output.......: A = 0 if file open is successful
-;Errors.......: A = error code (!= 0)
+;Purpose......: Opens a file with file number file_cur_num+1
+;Input........: X/Y = Pointer to file name
+;               A = File name length
+;Output.......: A = 0 if successful
+;Errors.......: A = error code if failed
 .proc file_open
     ;Clear error
     stz file_err
 
-    ;Ensure file #1 is closed
-    bridge_setaddr KERNAL_CLOSE
-    lda #1
-    bridge_call
+    ;Save input on stack
+    phx
+    phy
+    pha
+
+    ;Copy file name
+    stx TEMP1
+    sty TEMP1+1
+    sta TEMP2
+    lda #BASLOAD_RAM1
+    sta RAM_SEL
+    ldy #0
+:   lda (TEMP1),y
+    sta tmp,y
+    iny
+    cpy #63 ; Maxlen, abort
+    beq :+
+    cpy TEMP2
+    bcc :-
+:   lda #0 ; Set NULL terminator
+    sta tmp,y
+
+    ;Restore input
+    pla
+    ply
+    plx
 
     ;Set file name
+    pha
     bridge_setaddr KERNAL_SETNAM
-    lda file_len
-    ldx #<file_name
-    ldy #>file_name
+    pla
     bridge_call
 
     ;Set file params
     bridge_setaddr KERNAL_SETLFS
-    lda #1
+    inc file_cur_num
+    lda file_cur_num
+    cmp #12
+    bcs overflow
     ldx file_device
-    ldy #3
+    ldy file_cur_num
     bridge_call
 
     ;Open
     bridge_setaddr KERNAL_OPEN
     bridge_call
     bcs err
+
     bridge_setaddr KERNAL_CHKIN
-    ldx #1
+    ldx file_cur_num
     bridge_call
 
-    stz prevchar
+    ; Return value, 0 = OK
+    jsr file_set_status_as_response
+    beq :+
+    rts
+
+    ; File successfully opened, clear source line, and store file name in table
+:   ldx file_cur_num
+    lda #0
+    sta file_srclin_L-2,x
+    sta file_srclin_M-2,x
+    sta file_srclin_H-2,x
+
+    lda file_cur_num
+    dea
+    dea
+    sta TEMP1
+    stz TEMP1+1
+    ldx #6
+:   asl TEMP1
+    rol TEMP1+1
+    dex
+    bne :-
+    clc
+    lda TEMP1
+    adc #<file_name_tbl
+    sta TEMP1
+    lda TEMP1+1
+    adc #>file_name_tbl
+    sta TEMP1+1
+
+    ldy #0
+:   lda tmp,y
+    beq :+
+    sta (TEMP1),y
+    iny
+    bra :-
+:   sta (TEMP1),y
 
     lda #0
     rts
 
+overflow:
+    lda #1
+
 err:
     sta file_err
-    rts
+    jmp file_set_status_as_response
+
+.segment "RAM1"
+    tmp: .res 64
+.CODE
 .endproc
 
 ;******************************************************************************
 ;Function name: file_close
-;Purpose......: Closes source file
+;Purpose......: Closes current file, file number = file_cur_num
 ;Input........: Nothing
 ;Output.......: Nothing
-;Errors.......: Nothing
+;Errors.......: None
 .proc file_close
+    ; Close current file
     bridge_setaddr KERNAL_CLOSE
-    lda #1
+    lda file_cur_num
     bridge_call
 
+    ; Activate parent file, if exists
+    ldx file_cur_num
+    cpx #3
+    bcc :+ ; no
+
+    bridge_setaddr KERNAL_CHKIN
+    dec file_cur_num
+    ldx file_cur_num
+    bridge_call
+    rts
+
+:   lda #1
+    sta file_cur_num
     bridge_setaddr KERNAL_CLRCHN
     bridge_call
     rts
@@ -107,21 +227,30 @@ err:
 ;Purpose......: Reads one line from the source file and stores it in the
 ;               "file_buf" buffer
 ;Input........: Nothing
-;Output.......: A = 0 if OK but not EOF
-;               A = 1 if OK and EOF
-;Errors.......: A = 2 if error reading line, call function "file_status" to
-;               read the error code and message
-;               A = 3 if line is equal to or greater than 250 characters
+;Output.......: A = 0 => OK, not last line
+;               A = 1 => OK, is last line
+;Errors.......: A = 2 => Error
 .proc file_readln
+    ; Init
     stz index
     stz quotes
-    
+
+    ; Increment source line counter
+    ldx file_cur_num
+    stx file_line_from
+
+    inc file_srclin_L-2,x
+    bne loop
+    inc file_srclin_M-2,x
+    bne loop
+    inc file_srclin_H-2,x
+
 loop:
     ;Read char from file
     bridge_setaddr KERNAL_CHRIN
     bridge_call
-    ldx prevchar
-    sta prevchar
+    ldx file_lastchar
+    sta file_lastchar
 
     cmp #10                 ;LF
     bne :+
@@ -194,7 +323,13 @@ eof:
     ldx index
     sta file_buf,x
 
-    lda #1                  ;Return code = 1 => EOF
+    jsr file_close
+    lda file_cur_num
+    cmp #2
+    bcc :+
+    lda #0
+    rts
+:   lda #1
     rts
 
 eol:
@@ -220,70 +355,22 @@ eol:
 .endproc
 
 ;******************************************************************************
-;Function name: file_open_symfile
-;Purpose......: Opens symfile for writing
+;Function name: file_get_srclin
+;Purpose......: Returns line number in the active source file
 ;Input........: Nothing
-;Output.......: Nothing
+;Output.......: X,Y,A = 24 bit line number (low, mid, high)
 ;Errors.......: Nothing
-.proc file_open_symfile
-    ;Copy file name
-    ldx #0
-:   lda fn,x
-    sta symfile,X
-    inx
-    cpx fn_end-fn
-    bne :-
-    
-    ;Ensure file #3 is closed
-    bridge_setaddr KERNAL_CLOSE
-    lda #3
-    bridge_call
+.proc file_get_srclin
+    ldx file_line_from
 
-    ;Set file name
-    bridge_setaddr KERNAL_SETNAM
-    lda #fn_end-fn
-    ldx #<symfile
-    ldy #>symfile
-    bridge_call
-
-    ;Set file params
-    bridge_setaddr KERNAL_SETLFS
-    lda #3
-    ldx file_device
-    ldy #3
-    bridge_call
-
-    ;Open
-    bridge_setaddr KERNAL_OPEN
-    bridge_call
-    bcs err
-    bridge_setaddr KERNAL_CHKOUT
-    ldx #3
-    bridge_call
-
-    rts
-
-err:
-    rts
-
-    fn: .byt "@:basload.sym,s,w"
-    fn_end:
-
-.segment "VARS"
-    symfile: .res 16 
-.CODE
-.endproc
-
-.proc file_close_symfile
-    bridge_setaddr KERNAL_CLOSE
-    lda #3
-    bridge_call
-
-    bridge_setaddr KERNAL_CLRCHN
-    bridge_call
+    lda file_srclin_L-2,x
+    pha
+    lda file_srclin_M-2,x
+    tay
+    lda file_srclin_H-2,x
+    plx
     rts
 .endproc
-
 
 ;******************************************************************************
 ;Function name: file_status
@@ -350,10 +437,19 @@ close:
     bridge_setaddr KERNAL_CLOSE
     lda #15
     bridge_call
-    bridge_setaddr KERNAL_CLRCHN
+
+    ldx file_cur_num
+    cpx #2
+    bcc :+
+    bridge_setaddr KERNAL_CHKIN
+    bridge_call
+    bra format
+
+:   bridge_setaddr KERNAL_CLRCHN
     bridge_call
 
     ;Format status code as BCD value
+format:
     sec
     lda file_buf
     sbc #48
@@ -382,12 +478,12 @@ err:
 .endproc
 
 ;******************************************************************************
-;Function name: file_set_disk_status
+;Function name: file_set_status_as_response
 ;Purpose......: Set disk error as response message
 ;Input........: Nothing
-;Output.......: Nothing
+;Output.......: A = error code, or 0 if no error
 ;Errors.......: Nothing
-.proc file_set_disk_status
+.proc file_set_status_as_response
     ;Check if there was a Kernal I/O error, i.e. before disk communication begun
     lda file_err
     beq :+
@@ -403,7 +499,7 @@ err:
     lda #RESPONSE_IO_ERROR
     jsr response_set
 
-    stz file_err
+    lda file_err
     rts
 
     ;Else get and print status retrieved from the disk if there was an error
@@ -411,14 +507,20 @@ err:
     cmp #0                  ;A = Status code
     beq :+                  ;0 => No error, exit without printing anything
 
+    pha
+
     ldx #<(file_buf)        ;Print disk status
     ldy #>(file_buf)
     lda #RESPONSE_DISK_ERROR
     sec
     jsr response_set
+    
+    pla
+    rts
 
 :   rts
 .endproc
+
 
 ;******************************************************************************
 ;Kernal I/O error messages

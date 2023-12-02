@@ -5,13 +5,11 @@
 LINE_DEFAULT_ELEMENT = 0
 LINE_REMARK = 2
 LINE_STRING = 4
-LINE_OPTION_1 = 6
-LINE_OPTION_2 = 8
-LINE_HEXNUM = 10
-LINE_BINNUM = 12
-LINE_DECNUM = 14
-LINE_SYMBOL = 16
-LINE_DATA = 18
+LINE_HEXNUM = 6
+LINE_BINNUM = 8
+LINE_DECNUM = 10
+LINE_SYMBOL = 12
+LINE_DATA = 14
 
 ; Variables
 .ZEROPAGE
@@ -19,8 +17,8 @@ LINE_DATA = 18
     line_code: .res 2
 
 .segment "VARS"
-    line_srclin: .res 3
     line_dstlin: .res 2
+    line_option_rem: .res 1
 .CODE
 
 ;******************************************************************************
@@ -31,11 +29,6 @@ LINE_DATA = 18
 ;Output.......: Nothing
 ;Errors.......: None
 .proc line_init
-    ; Clear source line number
-    stz line_srclin
-    stz line_srclin+1
-    stz line_srclin+2
-
     ; Clear destination line number
     stz line_dstlin
     stz line_dstlin+1
@@ -49,6 +42,9 @@ LINE_DATA = 18
     sta line_meta+1
     sta line_code+1
 
+    ; Set default options
+    stz line_option_rem ; Remove REms
+
     rts
 .endproc
 
@@ -57,8 +53,8 @@ LINE_DATA = 18
 ;Purpose......: Pass 1; looks for label defintions and stores them in
 ;               the symbol table
 ;Input........: file_buf    A line of source code, NULL terminated
-;Output.......: Nohting
-;Error........: C=1 if errro occured
+;Output.......: Nothing
+;Error........: C=1 if error occured
 
 .proc line_pass1
     ; Init
@@ -66,29 +62,10 @@ LINE_DATA = 18
     stz index_src
     stz index_dst
     stz state
-
-    ; Increment source line
-    inc line_srclin
-    bne :+
-    inc line_srclin+1
-    bne :+
-    inc line_srclin+2
-
-    ; Check source line overflow
-:   lda line_srclin
-    ora line_srclin+1
-    ora line_srclin+2
-    bne :+
-    ldx #<msg_line_num_overflow
-    ldy #>msg_line_num_overflow
-    lda #RESPONSE_SRC_LINE_NUM_OVF
-    clc
-    jsr response_set
-    sec
-    rts
+    stz last_char
 
     ; Increment destination line
-:   inc line_dstlin
+    inc line_dstlin
     bne :+
     inc line_dstlin+1
 
@@ -148,9 +125,26 @@ default:
     cmp #$40
     bcc :+
     and #%11011111
+
+    ; Option?
+:   cmp #35
+    bne symstrt
+    ldx index_dst
+    bne symstrt
+
+    ldx index_src
+    inx
+    jsr option_parse
+    cmp #0
+    beq :+
+    cmp #$ff
+    beq :+
+    jmp eol
+:   jmp line_file_error
     
     ; Symbol start?
-:   cmp #'a'
+symstrt:   
+    cmp #'a'
     bcs :+
     jmp fake_copy
 :   cmp #'z'+1
@@ -173,33 +167,40 @@ symbol:
 :   cmp #'a'
     bcc :+
     cmp #'z'+1
-    bcc next
+    bcs :+
+    jmp next
 
     ; Points are allowed in a symbol name, continue if found
 :   cmp #'.'
-    beq next
+    bne :+
+    jmp next
 
     ; A symbol ended by a colon is a possible label declaration - needs further checking
-    cmp #':'
-    beq label
+:   cmp #':'
+    beq symbol_chk
 
     ; Decimal numbers are allowed in symbol names, continue if found
     cmp #'0'
-    bcc symbol_end
+    bcc symbol_chk
     cmp #'9'+1
-    bcs symbol_end
+    bcs symbol_chk
     jmp next
 
-label:
-    lda index_dst
-    bne symbol_end
-
+symbol_chk:
     ldx symbol_start
     ldy index_src
     dey
     jsr symbol_find
-    bcc symbol_dup
+    bcc symbol_exists
+    
+    lda index_dst
+    bne symbol_end
+    ldx index_src
+    lda file_buf,x
+    cmp #':'
+    bne symbol_end
 
+is_label:
     ldx symbol_start
     ldy index_src
     lda #0
@@ -207,7 +208,7 @@ label:
     clc
     jsr symbol_add
     cmp #0
-    beq label2
+    beq is_label2
     cmp #1
     bne :+
     jmp line_duplicate_symbols
@@ -218,12 +219,22 @@ label:
     bne :+
     jmp line_out_of_var_names
 :   cmp #4
-    bne label2
+    bne is_label2
     jmp line_symbol_too_long
 
-label2:
+is_label2:
     stz state
     jmp next
+
+symbol_exists:
+    ldy index_dst
+    bne :+
+
+    cmp #0
+    beq symbol_dup
+:   cmp #2
+    beq symbol_token
+    bra symbol_end
 
 symbol_dup:
     ldx #<msg_duplicate_symbols
@@ -234,6 +245,18 @@ symbol_dup:
     sec
     rts
 
+symbol_token:
+    cpx #$8f    ; REM statement?
+    bne symbol_end
+    
+    lda line_option_rem
+    bne symbol_end
+    lda last_char
+    cmp #':'
+    bne :+
+    dec index_dst
+:   jmp eol
+
 symbol_end:
     inc index_dst
     stz state
@@ -243,6 +266,7 @@ fake_copy:
     ; In pass 2 this data will be copied to BASIC memory
     ; We need to keep track of it, in order to tell that this will output data to BASIC memory
     inc index_dst
+    sta last_char
 
 next:
     inc index_src
@@ -254,6 +278,7 @@ next:
     index_dst: .res 1
     state: .res 1
     symbol_start: .res 1
+    last_char: .res 1
 .CODE
 .endproc
 
@@ -272,20 +297,9 @@ next:
     stz index_dst
     stz state
     stz last_token
-    
-    ; Option: Remarks on/off, default is on
-    lda #1
-    sta remarks_on
-
-    ; Increment source line
-    inc line_srclin
-    bne :+
-    inc line_srclin+1
-    bne :+
-    inc line_srclin+2
 
     ; Increment destination line
-:   inc line_dstlin
+    inc line_dstlin
     bne loop
     inc line_dstlin+1
 
@@ -392,17 +406,23 @@ default:
 
     ; Option - Starts with the # sign, must be at beginning of line
 :   cmp #35 ; Hash sign
-    bne :+
-    ldx non_whitespace_count ; Check if it's the first non-whitespace char on this line
-    bne :+
-    lda #LINE_OPTION_1
-    sta state
+    bne ishex
+    ldx index_dst
+    bne ishex
+    
     ldx index_src
-    stx option_start
-    jmp next
+    inx
+    jsr option_parse
+    cmp #0
+    beq :+
+    cmp #$ff
+    beq :+
+    jmp eol
+:   jmp line_file_error
 
     ; Hexadecimal number - Starts with a $ sign
-:   cmp #'$'
+ishex:
+    cmp #'$'
     bne :+
     ldx #LINE_HEXNUM
     stx state
@@ -466,7 +486,7 @@ default:
 :   jmp copy
 
 remark:
-    ldx remarks_on
+    ldx line_option_rem
     beq :+
     jmp copy
 :   jmp next
@@ -477,13 +497,6 @@ string:
     ldx #LINE_DEFAULT_ELEMENT
     stx state
 :   jmp copy
-
-option1:
-    ; TODO: Not yet implemented
-    jmp next
-    
-option2:
-    ; TODO: Not yet implemented
 
 hexnum:
     ; 0..9?
@@ -697,10 +710,21 @@ instoken:
     bra :+++
 
 :   cpx #$8f ; REM statement
-    bne :+
+    bne :++
     lda #LINE_REMARK
     sta state
-    jmp next
+    lda line_option_rem
+    bne :+
+    dec index_dst
+    ldy index_dst
+    beq :+
+    dey
+    lda (line_code),y
+    cmp #':'
+    bne :+
+    dec index_dst
+
+:   jmp next
 
 :   cpx #$83 ; DATA statement
     bne :+
@@ -743,7 +767,7 @@ next:
     jmp loop
 
 jump_table:
-    .word default, remark, string, option1, option2, hexnum, binnum, decnum, symbol, data
+    .word default, remark, string, hexnum, binnum, decnum, symbol, data
 
 .segment "VARS"
     state: .res 1
@@ -752,24 +776,34 @@ jump_table:
     symbol_start: .res 1
     dp_count: .res 1
     index_dst: .res 1
-    remarks_on: .res 1
     last_token: .res 2
     quotes_count: .res 1
     option_start: .res 1
 .CODE
 .endproc
 
+;******************************************************************************
+;Function name: line_duplicate_symbols
+;Purpose......: Sets duplicate symbol error
+;Input........: Nothing
+;Output.......: Nothing
+;Error........: None
 .proc line_duplicate_symbols
     ldx #<msg_duplicate_symbols
     ldy #>msg_duplicate_symbols
     lda #RESPONSE_DUPLICATE_SYMBOL
     clc
     jsr response_set
-    
     sec
     rts
 .endproc
 
+;******************************************************************************
+;Function name: line_symbol_table_full
+;Purpose......: Sets symbol table full error
+;Input........: Nothing
+;Output.......: Nothing
+;Error........: None
 .proc line_symbol_table_full
     ldx #<msg_mem_full
     ldy #>msg_mem_full
@@ -781,6 +815,12 @@ jump_table:
     rts
 .endproc
 
+;******************************************************************************
+;Function name: line_out_of_var_names
+;Purpose......: Sets out of variable names error
+;Input........: Nothing
+;Output.......: Nothing
+;Error........: None
 .proc line_out_of_var_names
     ldx #<msg_out_of_var_names  
     ldy #>msg_out_of_var_names
@@ -792,6 +832,12 @@ jump_table:
     rts
 .endproc
 
+;******************************************************************************
+;Function name: line_symbol_too_long
+;Purpose......: Sets symbol too long error
+;Input........: Nothing
+;Output.......: Nothing
+;Error........: None
 .proc line_symbol_too_long
     ldx #<msg_symbol_too_long
     ldy #>msg_symbol_too_long
@@ -803,19 +849,24 @@ jump_table:
     rts
 .endproc
 
-.proc line_get_option
-    lda file_buf,x
-    cmp #'#'
-    bne :+
-    lda #1
+.proc line_syntax_err
+    ldx #<msg_syntax_error
+    ldy #>msg_syntax_error
+    lda #RESPONSE_MISSING_LABEL
+    clc
+    jsr response_set
+    sec
     rts
+.endproc
 
-:   lda #0
+.proc line_file_error
+    jsr file_status
+
+    ldx #<msg_file_error
+    ldy #>msg_file_error
+    lda #RESPONSE_IO_ERROR
+    clc
+    jsr response_set
+    sec
     rts
-
-.segment "VARS"
-    index1: .res 1
-    index2: .res 1
-    optionnum: .res 1
-.CODE
 .endproc
