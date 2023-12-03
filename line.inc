@@ -75,7 +75,7 @@ LINE_DATA = 14
     bne loop
     ldx #<msg_line_num_overflow
     ldy #>msg_line_num_overflow
-    lda #RESPONSE_DST_LINE_NUM_OVF
+    lda #RESPONSE_LINE_NUM_OVERFLOW
     clc
     jsr response_set
     sec
@@ -136,11 +136,22 @@ default:
     inx
     jsr option_parse
     cmp #0
-    beq :+
-    cmp #$ff
-    beq :+
-    jmp eol
-:   jmp line_file_error
+    bne :+
+    clc
+    lda #RESPONSE_OPTION_UNKNOWN
+    jsr response_set
+    sec
+    rts
+
+:   cmp #$ff
+    bne :+
+    clc
+    lda #RESPONSE_FILE_ERROR
+    jsr response_set
+    sec
+    rts
+
+:   jmp eol
     
     ; Symbol start?
 symstrt:   
@@ -211,16 +222,35 @@ is_label:
     beq is_label2
     cmp #1
     bne :+
-    jmp line_duplicate_symbols
+    clc
+    lda #RESPONSE_DUPLICATE_SYMBOL
+    jsr response_set
+    sec
+    rts
+
 :   cmp #2
     bne :+
-    jmp line_symbol_table_full
+    sec
+    lda #RESPONSE_SYMTBL_FULL
+    jsr response_set
+    sec
+    rts
+
 :   cmp #3
     bne :+
-    jmp line_out_of_var_names
+    clc
+    lda #RESPONSE_OUT_OF_VAR_NAMES
+    jsr response_set
+    sec
+    rts
+
 :   cmp #4
     bne is_label2
-    jmp line_symbol_too_long
+    clc
+    lda #RESPONSE_SYMBOL_TOO_LONG
+    jsr response_set
+    sec
+    rts
 
 is_label2:
     stz state
@@ -237,10 +267,8 @@ symbol_exists:
     bra symbol_end
 
 symbol_dup:
-    ldx #<msg_duplicate_symbols
-    ldy #>msg_duplicate_symbols
-    lda #RESPONSE_DUPLICATE_SYMBOL
     clc
+    lda #RESPONSE_DUPLICATE_SYMBOL
     jsr response_set
     sec
     rts
@@ -289,7 +317,7 @@ next:
 ;Input........: file_buf    A line of source code, NULL terminated
 ;Output.......: Nothing
 ;Output.......: Nohting
-;Error........: C=1 if errro occured
+;Error........: C=1 if error occured
 .proc line_pass2
     ; Init
     stz non_whitespace_count
@@ -414,11 +442,22 @@ default:
     inx
     jsr option_parse
     cmp #0
-    beq :+
-    cmp #$ff
-    beq :+
-    jmp eol
-:   jmp line_file_error
+    bne :+
+    clc
+    lda #RESPONSE_OPTION_UNKNOWN
+    jsr response_set
+    sec
+    rts
+
+:   cmp #$ff
+    bne :+
+    clc
+    lda #RESPONSE_FILE_ERROR
+    jsr response_set
+    sec
+    rts
+
+:   jmp eol
 
     ; Hexadecimal number - Starts with a $ sign
 ishex:
@@ -598,6 +637,26 @@ symbol_check2:
     bcs newvar ; Previously unknown symbol, treat as new variable
     
 symbol_found:
+    ; If last token was GOTO or GOSUB, the symbol must be a label
+    pha
+
+    cmp #0
+    beq :++
+
+    lda last_token
+    cmp #$89
+    beq :+
+    cmp #$8d
+    bne :++
+
+:   pla
+    clc
+    lda #RESPONSE_LABEL_EXPECTED
+    jsr response_set
+    sec
+    rts
+
+:   pla
     cmp #1
     beq insvar
     cmp #2
@@ -639,16 +698,35 @@ newvar:
     beq insvar
     cmp #1
     bne :+
-    jmp line_duplicate_symbols
+    clc
+    lda #RESPONSE_DUPLICATE_SYMBOL
+    jsr response_set
+    sec
+    rts
+
 :   cmp #2
     bne :+
-    jmp line_symbol_table_full
+    sec
+    lda #RESPONSE_SYMTBL_FULL
+    jsr response_set
+    sec
+    rts
+
 :   cmp #3
     bne :+
-    jmp line_out_of_var_names
+    clc
+    lda #RESPONSE_OUT_OF_VAR_NAMES
+    jsr response_set
+    sec
+    rts
+
 :   cmp #4
     bne insvar
-    jmp line_symbol_too_long
+    clc
+    lda #RESPONSE_SYMBOL_TOO_LONG
+    jsr response_set
+    sec
+    rts
     
 insvar:
    ; Store variable value to BASIC memory
@@ -666,22 +744,9 @@ insvar:
     ; Clear state
     stz state
 
-    ; Check if last token was GOTO or GOSUB => Error
-    lda last_token
-    cmp #$89
-    beq :+
-    cmp #$8d
-    bne :++
-
-:   ldx #<msg_label_expected
-    ldy #>msg_label_expected
-    lda #RESPONSE_MISSING_LABEL
-    clc
-    jmp response_set 
-
     ; If the current char is $ or %, let's copy it to BASIC memory, otherwise let the default handler process it
     ; A trailing $ or % indicates the type of variable
-:   inc index_src
+    inc index_src
     ldx index_src
     lda file_buf,x
     cmp #'$'
@@ -780,93 +845,4 @@ jump_table:
     quotes_count: .res 1
     option_start: .res 1
 .CODE
-.endproc
-
-;******************************************************************************
-;Function name: line_duplicate_symbols
-;Purpose......: Sets duplicate symbol error
-;Input........: Nothing
-;Output.......: Nothing
-;Error........: None
-.proc line_duplicate_symbols
-    ldx #<msg_duplicate_symbols
-    ldy #>msg_duplicate_symbols
-    lda #RESPONSE_DUPLICATE_SYMBOL
-    clc
-    jsr response_set
-    sec
-    rts
-.endproc
-
-;******************************************************************************
-;Function name: line_symbol_table_full
-;Purpose......: Sets symbol table full error
-;Input........: Nothing
-;Output.......: Nothing
-;Error........: None
-.proc line_symbol_table_full
-    ldx #<msg_mem_full
-    ldy #>msg_mem_full
-    lda #RESPONSE_SYMTBL_FULL
-    clc
-    jsr response_set
-    
-    sec
-    rts
-.endproc
-
-;******************************************************************************
-;Function name: line_out_of_var_names
-;Purpose......: Sets out of variable names error
-;Input........: Nothing
-;Output.......: Nothing
-;Error........: None
-.proc line_out_of_var_names
-    ldx #<msg_out_of_var_names  
-    ldy #>msg_out_of_var_names
-    lda #RESPONSE_OUT_OF_VAR_NAMES
-    clc
-    jsr response_set
-    
-    sec
-    rts
-.endproc
-
-;******************************************************************************
-;Function name: line_symbol_too_long
-;Purpose......: Sets symbol too long error
-;Input........: Nothing
-;Output.......: Nothing
-;Error........: None
-.proc line_symbol_too_long
-    ldx #<msg_symbol_too_long
-    ldy #>msg_symbol_too_long
-    lda #RESPONSE_SYMBOL_TOO_LONG
-    clc
-    jsr response_set
-    
-    sec
-    rts
-.endproc
-
-.proc line_syntax_err
-    ldx #<msg_syntax_error
-    ldy #>msg_syntax_error
-    lda #RESPONSE_MISSING_LABEL
-    clc
-    jsr response_set
-    sec
-    rts
-.endproc
-
-.proc line_file_error
-    jsr file_status
-
-    ldx #<msg_file_error
-    ldy #>msg_file_error
-    lda #RESPONSE_IO_ERROR
-    clc
-    jsr response_set
-    sec
-    rts
 .endproc

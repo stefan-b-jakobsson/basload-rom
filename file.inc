@@ -185,7 +185,9 @@ overflow:
 
 err:
     sta file_err
-    jmp file_set_status_as_response
+    jsr file_set_status_as_response
+    lda file_err
+    rts
 
 .segment "RAM1"
     tmp: .res 64
@@ -229,6 +231,7 @@ err:
 ;Input........: Nothing
 ;Output.......: A = 0 => OK, not last line
 ;               A = 1 => OK, is last line
+;               A = 3 => Line too long
 ;Errors.......: A = 2 => Error
 .proc file_readln
     ; Init
@@ -486,41 +489,57 @@ err:
 .proc file_set_status_as_response
     ;Check if there was a Kernal I/O error, i.e. before disk communication begun
     lda file_err
-    beq :+
+    beq drive
 
-    ;Print I/O error message
-    tax
-    dex
-    lda file_ioerr_H,x
-    tay
-    lda file_ioerr_L,x
-    tax
+    ;Output I/O error message
     sec
-    lda #RESPONSE_IO_ERROR
+    lda #RESPONSE_FILE_ERROR
     jsr response_set
 
-    lda file_err
+    ldx file_err
+    dex
+    lda file_ioerr_H,x
+    sta TEMP1
+    lda file_ioerr_L,x
+    sta TEMP1+1
+
+    stz RAM_SEL
+    ldy #0
+:   lda (TEMP1),y
+    beq :+
+    sta $bf00,y
+    iny
+    bra :-
+
+:   lda file_err
     rts
 
-    ;Else get and print status retrieved from the disk if there was an error
-:   jsr file_status         ;Gets and stores disk status in file_buf
+    ;Else get and output status retrieved from the disk drive if there was an error
+drive:
+    jsr file_status         ;Gets and stores disk status in file_buf
     cmp #0                  ;A = Status code
-    beq :+                  ;0 => No error, exit without printing anything
+    beq exit                ;0 => No error, exit without outputting anything
 
     pha
 
-    ldx #<(file_buf)        ;Print disk status
-    ldy #>(file_buf)
-    lda #RESPONSE_DISK_ERROR
     sec
+    lda #RESPONSE_FILE_ERROR
     jsr response_set
-    
+
+    stz RAM_SEL
+    ldy #0
+:   lda file_buf,y
+    beq :+
+    sta $bf00,y
+    iny
+    bra :-
+:   sta $bf00,y
+
     pla
+
+exit:
     rts
-
-:   rts
 .endproc
-
 
 ;******************************************************************************
 ;Kernal I/O error messages

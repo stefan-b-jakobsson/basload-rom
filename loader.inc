@@ -43,6 +43,7 @@
     jsr token_init
     jsr line_init
     jsr file_init
+
     ldx #<file_main_name
     ldy #>file_main_name
     lda file_main_len
@@ -54,16 +55,24 @@
 pass1_loop:   
     jsr file_readln
     cmp #2
-    beq err1
+    beq err1a
+    cmp #3
+    beq err1b
     jsr line_pass1
-    bcs err1
+    bcs err1a
     lda file_cur_num
     cmp #2
     bcs pass1_loop
     bra eof1
 
-err1:
+err1a:
     jsr file_set_status_as_response
+    bra exit
+
+err1b:
+    clc
+    lda #RESPONSE_LINE_TOO_LONG
+    jsr response_set
     bra exit
 
 eof1:
@@ -81,16 +90,24 @@ eof1:
 pass2_loop:
     jsr file_readln
     cmp #2
-    bcs err2
+    beq err2a
+    cmp #3
+    beq err2b
     jsr line_pass2
-    bcs err2
+    bcs err2a
     lda file_cur_num
     cmp #2
     bcs pass2_loop
     bra eof2
 
-err2:
+err2a:
     jsr file_set_status_as_response
+    bra exit
+
+err2b:
+    clc
+    lda #RESPONSE_LINE_TOO_LONG
+    jsr response_set
     bra exit
 
 eof2:

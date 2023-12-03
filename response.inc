@@ -25,33 +25,54 @@
 ;OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ;OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+; Response codes
 RESPONSE_OK                     = 0
-RESPONSE_IO_ERROR               = 1
-RESPONSE_DISK_ERROR             = 2
-RESPONSE_SRC_LINE_NUM_OVF       = 3
-RESPONSE_DST_LINE_NUM_OVF       = 4
-RESPONSE_LINE_TOO_LONG          = 5
-RESPONSE_MISSING_LABEL          = 6
-RESPONSE_DUPLICATE_SYMBOL       = 7
-RESPONSE_SYMBOL_TOO_LONG        = 8
-RESPONSE_OUT_OF_VAR_NAMES       = 9
-RESPONSE_PARSE_ERROR            = 10
-RESPONSE_SYMTBL_FULL            = 11
+RESPONSE_LINE_TOO_LONG          = 1
+RESPONSE_SYMBOL_TOO_LONG        = 2
+RESPONSE_DUPLICATE_SYMBOL       = 3
+RESPONSE_SYMTBL_FULL            = 4
+RESPONSE_OUT_OF_VAR_NAMES       = 5
+RESPONSE_LABEL_EXPECTED         = 6
+RESPONSE_LINE_NUM_OVERFLOW      = 7
+RESPONSE_OPTION_UNKNOWN         = 8
+RESPONSE_FILE_ERROR             = 9
+
+; Response messages
+msg_ok: .byt "success",0
+msg_line_too_long: .byt "line too long in ", 0
+msg_symbol_too_long: .byt "symbol too long in ", 0
+msg_duplicate_symbol: .byt "duplicate symbol in ", 0
+msg_symtbl_full: .byt "symbol table full", 0
+msg_out_of_var_names: .byt "out of variable names", 0
+msg_missing_label: .byt "label not found in ", 0
+msg_line_num_overflow: .byt "line number overflow in ",0
+msg_option_unknown: .byt "unknown option in ", 0
+msg_file_error: .byt "file error in ",0
+
+; Response message pointers
+msg_pointers:
+    .word msg_ok
+    .word msg_line_too_long
+    .word msg_symbol_too_long
+    .word msg_duplicate_symbol
+    .word msg_symtbl_full
+    .word msg_out_of_var_names
+    .word msg_missing_label
+    .word msg_line_num_overflow
+    .word msg_option_unknown
+    .word msg_file_error
 
 ;******************************************************************************
 ;Function name: response_set
 ;Purpose......: Sets application response code and message
 ;Input........: A = return code
-;                   0       = OK
-;                   1-255   = Error code
-;               X/Y = Pointer to response text message
 ;               C = 1, no line number in output
 ;Output.......: Response code is stored in R1L
 ;               Response message stored in bank 0, $bf00..bfff
-;               An error replaces an earlier warning
-;               A warning is ignored if there is already a response code and
-;               message stored
-;Errors.......: A = 1 if error occured
+;               Source line number stored in R1H..R2H (24 bits)
+;               Pointer to file name stored in R3 (16 bits), resides in
+;               bank BASLOAD_RAM1
+;Errors.......: None
 .proc response_set
     ; Save input
     sta KERNAL_R1
@@ -65,15 +86,22 @@ msg_cpy:
     pha
     stz RAM_SEL
 
-    ; Set pointers to message source and destination
-    stx TEMP1
-    sty TEMP1+1
+    ; Set pointer to message source
+    lda KERNAL_R1
+    asl ; convert word index to byte offset
+    tax
+    lda msg_pointers,x
+    sta TEMP1
+    lda msg_pointers+1,x
+    sta TEMP1+1
+
+    ; Set pointer to message destination (00:bf00)
     stz TEMP2
     lda #$bf
     sta TEMP2+1
-    ldy #0
 
-    ; Copy null terminated string
+    ; Copy null response message string
+    ldy #0
 :   lda (TEMP1),y
     beq line_num
     sta (TEMP2),y
@@ -90,7 +118,7 @@ line_num:
     lda show_line
     bne exit
 
-    ; Set pointer to end of output string
+    ; Set pointer to end of response message
     clc
     tya
     adc TEMP2
@@ -99,29 +127,33 @@ line_num:
     adc #0
     sta TEMP2+1
 
-    ; Print file name
-    lda #BASLOAD_RAM1
+    ; Copy file name to response message
+    lda #BASLOAD_RAM1 ; Select RAM bank
     sta RAM_SEL
-    lda file_line_from
-    dea
+
+    lda file_line_from  ; Get file number that the current source line was read from
+    dea                 ; First file number is 2, decrement by 2 to get index in the file names table
     dea
     sta TEMP1
     stz TEMP1+1
-    ldx #6
+
+    ldx #6              ; Multiply by 64 to get byte offset in the file names table
 :   asl TEMP1
     rol TEMP1+1
     dex
     bne :-
 
-    clc
+    clc                 ; Finally, add start of file names table to the calculated byte offset
     lda TEMP1
     adc #<file_name_tbl
     sta TEMP1
+    sta KERNAL_R3       ; Store pointer to file name in R3, low byte
     lda TEMP1+1
     adc #>file_name_tbl
     sta TEMP1+1
+    sta KERNAL_R3+1     ; Store pointer to file name in R3, high byte
     
-    ldy #0
+    ldy #0              ; Copy loop
 :   lda #BASLOAD_RAM1
     sta RAM_SEL
     lda (TEMP1),y
@@ -129,13 +161,14 @@ line_num:
     beq :+
     sta (TEMP2),y
     iny
-    cpy #63
+    cpy #63             ; Abort if we have copied 63 chars, there's no more room in the table
     bcc :-
-:   lda #':'
+
+:   lda #':'            ; Add a colon to the response message after the file name
     sta (TEMP2),y
     iny
 
-    ; Set pointer to end of output string
+    ; Set pointer to end of response message (again)
     clc
     tya
     adc TEMP2
@@ -144,7 +177,7 @@ line_num:
     adc #0
     sta TEMP2+1
     
-    ; Store line number
+    ; Store source line number in R1H to R2H (3 bytes)
     jsr file_get_srclin
     stx KERNAL_R1+1
     sty KERNAL_R2
@@ -156,7 +189,7 @@ line_num:
     stx TEMP1
     sty TEMP1+1
     
-    ; Output line number to message
+    ; Copy line number to reponse message
     ldy #0
 :   lda (TEMP1),y
     sta (TEMP2),y
@@ -165,8 +198,10 @@ line_num:
     bra :-
 
 exit:
+    ; Restore RAM bank to original value
     pla
     sta RAM_SEL
+    
     rts
 
 .segment "VARS"
