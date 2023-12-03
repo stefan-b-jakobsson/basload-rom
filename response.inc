@@ -36,6 +36,8 @@ RESPONSE_LABEL_EXPECTED         = 6
 RESPONSE_LINE_NUM_OVERFLOW      = 7
 RESPONSE_OPTION_UNKNOWN         = 8
 RESPONSE_FILE_ERROR             = 9
+RESPONSE_INVALID_PARAM          = 10
+
 
 ; Response messages
 msg_ok: .byt "success",0
@@ -48,6 +50,7 @@ msg_missing_label: .byt "label not found in ", 0
 msg_line_num_overflow: .byt "line number overflow in ",0
 msg_option_unknown: .byt "unknown option in ", 0
 msg_file_error: .byt "file error in ",0
+msg_invalid_param: .byt "invalid parameter in ", 0
 
 ; Response message pointers
 msg_pointers:
@@ -61,6 +64,7 @@ msg_pointers:
     .word msg_line_num_overflow
     .word msg_option_unknown
     .word msg_file_error
+    .word msg_invalid_param
 
 ;******************************************************************************
 ;Function name: response_set

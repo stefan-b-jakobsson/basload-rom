@@ -28,12 +28,13 @@
 ;Function name: option_parse
 ;Purpose......: Parses a line of code where there is an option
 ;Input........: X = Option start index in file_buf
-;Output.......: A = Option ID
+;Output.......: A = Return code
 ;                   00:          Unknown option
-;                   01: ##       Comment
-;                   02: #REM     Turn on or off REM output
-;                   03: #INCLUDE Include source file
-;                   ff:          Invalid param
+;                   01: ##       Option was a comment
+;                   02: #REM     Option turns on or off output of REMs
+;                   03: #INCLUDE Option was an INCLUDE statement
+;                   fe:          Invalid param
+;                   ff:          File error
 .proc option_parse
     ; Store input
     stx index1
@@ -107,7 +108,7 @@ include:
     rts
 
 invalid:
-    lda #$ff
+    lda #$fe
     rts
 
 .segment "VARS"

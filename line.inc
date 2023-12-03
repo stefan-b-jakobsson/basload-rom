@@ -58,7 +58,6 @@ LINE_DATA = 14
 
 .proc line_pass1
     ; Init
-    stz non_whitespace_count
     stz index_src
     stz index_dst
     stz state
@@ -119,10 +118,9 @@ default:
     cmp #9 ; Tab
     bne :++
 :   jmp next
-:   inc non_whitespace_count
 
     ; Convert all alphabetic chars to the same case
-    cmp #$40
+:   cmp #$40
     bcc :+
     and #%11011111
 
@@ -147,6 +145,14 @@ default:
     bne :+
     clc
     lda #RESPONSE_FILE_ERROR
+    jsr response_set
+    sec
+    rts
+
+:   cmp #$fe
+    bne :+
+    clc
+    lda #RESPONSE_INVALID_PARAM
     jsr response_set
     sec
     rts
@@ -301,7 +307,6 @@ next:
     jmp loop
 
 .segment "VARS"
-    non_whitespace_count: .res 1
     index_src: .res 1
     index_dst: .res 1
     state: .res 1
@@ -320,7 +325,6 @@ next:
 ;Error........: C=1 if error occured
 .proc line_pass2
     ; Init
-    stz non_whitespace_count
     stz index_src
     stz index_dst
     stz state
@@ -418,10 +422,9 @@ default:
     cmp #9 ; Tab
     bne :++
 :   jmp next
-:   inc non_whitespace_count
 
     ; String
-    cmp #34 ; Double quote
+:   cmp #34 ; Double quote
     bne :+
     ldx #LINE_STRING
     stx state
@@ -453,6 +456,14 @@ default:
     bne :+
     clc
     lda #RESPONSE_FILE_ERROR
+    jsr response_set
+    sec
+    rts
+
+:   cmp #$fe
+    bne :+
+    clc
+    lda #RESPONSE_INVALID_PARAM
     jsr response_set
     sec
     rts
@@ -836,7 +847,6 @@ jump_table:
 
 .segment "VARS"
     state: .res 1
-    non_whitespace_count: .res 1
     index_src: .res 1
     symbol_start: .res 1
     dp_count: .res 1
