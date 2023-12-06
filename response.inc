@@ -40,7 +40,7 @@ RESPONSE_INVALID_PARAM          = 10
 
 
 ; Response messages
-msg_ok: .byt "success",0
+msg_ok: .byt "success", 0
 msg_line_too_long: .byt "line too long in ", 0
 msg_symbol_too_long: .byt "symbol too long in ", 0
 msg_duplicate_symbol: .byt "duplicate symbol in ", 0
@@ -81,8 +81,13 @@ msg_pointers:
     ; Save input
     sta KERNAL_R1
     stz show_line
-    bcc msg_cpy
+    bcc :+
     inc show_line
+
+    ; Clear line number output
+:   stz KERNAL_R1+1
+    stz KERNAL_R2
+    stz KERNAL_R2+1
                             
 msg_cpy:
     ; Select RAM bank 0
@@ -113,11 +118,6 @@ msg_cpy:
     bra :-
 
 line_num:
-    ; Clear line number output
-    stz KERNAL_R1+1
-    stz KERNAL_R2
-    stz KERNAL_R2+1
-
     ; Skip if C was 1 => show_line = 1
     lda show_line
     bne exit
@@ -197,13 +197,13 @@ line_num:
     ldy #0
 :   lda (TEMP1),y
     sta (TEMP2),y
-    beq exit
+    beq :+
     iny
     bra :-
+:   iny
 
 exit:
     ; Set NULL terminator
-    iny
     lda #0
     sta (TEMP2),y
 

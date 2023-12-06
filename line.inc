@@ -644,29 +644,32 @@ symbol_check2:
     ldx symbol_start
     ldy index_src
     jsr symbol_find
-    bcs newvar ; Previously unknown symbol, treat as new variable
     
 symbol_found:
-    ; If last token was GOTO or GOSUB, the symbol must be a label
     pha
+    php
 
+    bcs :+
     cmp #0
-    beq :++
+    beq :+++
 
-    lda last_token
+:   lda last_token
     cmp #$89
     beq :+
     cmp #$8d
     bne :++
 
-:   pla
+:   plp
+    pla
     clc
     lda #RESPONSE_LABEL_EXPECTED
     jsr response_set
     sec
     rts
 
-:   pla
+:   plp
+    pla
+    bcs newvar
     cmp #1
     beq insvar
     cmp #2
