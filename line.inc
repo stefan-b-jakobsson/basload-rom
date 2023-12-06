@@ -19,6 +19,7 @@ LINE_DATA = 14
 .segment "VARS"
     line_dstlin: .res 2
     line_option_rem: .res 1
+    line_autonum: .res 1
 .CODE
 
 ;******************************************************************************
@@ -32,6 +33,10 @@ LINE_DATA = 14
     ; Clear destination line number
     stz line_dstlin
     stz line_dstlin+1
+
+    ; Set autonum = 1
+    lda #1
+    sta line_autonum
 
     ; Setup pointers to BASIC memory, starting at $0801
     lda #$01
@@ -64,12 +69,16 @@ LINE_DATA = 14
     stz last_char
 
     ; Increment destination line
-    inc line_dstlin
-    bne :+
-    inc line_dstlin+1
+    clc
+    lda line_dstlin
+    adc line_autonum
+    sta line_dstlin
+    lda line_dstlin+1
+    adc #0
+    sta line_dstlin+1
 
     ; Check destination line overflow
-:   lda line_dstlin
+    lda line_dstlin
     ora line_dstlin+1
     bne loop
     ldx #<msg_line_num_overflow
@@ -93,12 +102,15 @@ loop:
 eol:
     ; Rewind destination line number if the line didn't output anything to BASIC memory
     lda index_dst
-    bne :++
-
-    lda line_dstlin
     bne :+
-    dec line_dstlin+1
-:   dec line_dstlin
+
+    sec
+    lda line_dstlin
+    sbc line_autonum
+    sta line_dstlin
+    lda line_dstlin+1
+    sbc #0
+    sta line_dstlin+1
 
     ; Set response value, C=0 => OK
 :   clc
@@ -118,11 +130,6 @@ default:
     cmp #9 ; Tab
     bne :++
 :   jmp next
-
-    ; Convert all alphabetic chars to the same case
-:   cmp #$40
-    bcc :+
-    and #%11011111
 
     ; Option?
 :   cmp #35
@@ -175,13 +182,8 @@ symstrt:
     jmp next
 
 symbol:
-    ; Convert all alphabetic chars to the same case
-    cmp #$40
-    bcc :+
-    and #%11011111
-
     ; Alphabetic chars are allowed in symbol names, continue if found
-:   cmp #'a'
+    cmp #'a'
     bcc :+
     cmp #'z'+1
     bcs :+
@@ -331,9 +333,13 @@ next:
     stz last_token
 
     ; Increment destination line
-    inc line_dstlin
-    bne loop
-    inc line_dstlin+1
+    clc
+    lda line_dstlin
+    adc line_autonum
+    sta line_dstlin
+    lda line_dstlin+1
+    adc #0
+    sta line_dstlin+1
 
 loop:
     ; Get next char from file buffer
@@ -348,12 +354,15 @@ loop:
 eol:
     ; Rewind destination line number if nothing was outputted to BASIC memory
     ldy index_dst
-    bne :++
-    
-    lda line_dstlin
     bne :+
-    dec line_dstlin+1
-:   dec line_dstlin
+    
+    sec
+    lda line_dstlin
+    sbc line_autonum
+    sta line_dstlin
+    lda line_dstlin+1
+    sbc #0
+    sta line_dstlin+1
     bra exit
 
     ; Update BASIC memory: Set end of line marker
@@ -429,11 +438,6 @@ default:
     ldx #LINE_STRING
     stx state
     jmp copy
-
-    ; Convert all alphabetic chars to the same case
-:   cmp #$40
-    bcc :+
-    and #%11011111
 
     ; Option - Starts with the # sign, must be at beginning of line
 :   cmp #35 ; Hash sign
@@ -608,13 +612,8 @@ decnum:
     jmp loop
 
 symbol:
-    ; Convert letters to the same case, leave other chars alone
-    cmp #$40
-    bcc :+
-    and #%11011111
-
     ; Alphabetic chars are allowed in symbol names, continue if found
-:   cmp #'a'
+    cmp #'a'
     bcc :+
     cmp #'z'+1
     bcc symbol_cont

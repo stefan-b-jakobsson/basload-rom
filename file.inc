@@ -278,8 +278,13 @@ loop:
     inc quotes
     bra store_char
 
-:   ;Store char in Y register temporarily
-    tay
+    ;Convert $DE to $FE
+:   cmp #$de
+    bne :+
+    lda #$ff
+
+    ;Store char in Y
+:   tay
 
     ;Convert to ASCII upper case if not within a string
     lda quotes

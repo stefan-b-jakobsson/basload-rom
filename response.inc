@@ -202,6 +202,11 @@ line_num:
     bra :-
 
 exit:
+    ; Set NULL terminator
+    iny
+    lda #0
+    sta (TEMP2),y
+
     ; Restore RAM bank to original value
     pla
     sta RAM_SEL

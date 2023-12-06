@@ -65,6 +65,8 @@ get_option:
     beq rem
     cmp #3
     beq include
+    cmp #4
+    beq autonum
 
 unknown:
     lda #0
@@ -107,6 +109,51 @@ include:
     lda #$ff
     rts
 
+autonum:
+    ; Get step value
+    ldx index1
+    jsr option_get_int
+    bcs invalid
+    
+    ; Values 1-100 are valid
+    cpy #1
+    bcs invalid
+    cmp #1
+    bcs invalid
+    cpx #0
+    beq invalid
+    cpx #101
+    bcs invalid
+
+    ; Store new step value
+    stx tmp
+
+    ; Rewind line number using the old step value
+    sec
+    lda line_dstlin
+    sbc line_autonum
+    sta line_dstlin
+    lda line_dstlin+1
+    sbc #0
+    sta line_dstlin+1
+
+    ; Set line number using the new step value
+    clc
+    lda line_dstlin
+    adc tmp
+    sta line_dstlin
+    lda line_dstlin+1
+    adc #0
+    sta line_dstlin+1
+
+    ; Set step value
+    lda tmp
+    sta line_autonum
+
+    ; Exit
+    lda option_index
+    rts
+
 invalid:
     lda #$fe
     rts
@@ -139,12 +186,9 @@ invalid:
     ; Start searching
     ldy #0
 loop:
-    ; Get char from line buffer and convert case
+    ; Get char from line buffer
     lda file_buf,x
-    cmp #$40
-    bcc :+
-    and #%11011111
-:   sta tmp
+    sta tmp
 
     ; Get char from options table and compare
     lda options_tbl,y
@@ -191,6 +235,7 @@ options_tbl:
     .byt "#",0
     .byt "rem",0
     .byt "include",0
+    .byt "autonum", 0
     .byt 0
 
 .segment "VARS"
