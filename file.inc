@@ -289,18 +289,23 @@ loop:
     ;Convert to ASCII upper case if not within a string
     lda quotes
     and #%00000001
-    bne :+                  ;Within string, store char as is
+    bne :++                 ;Within string, store char as is
 
     cpy #97
-    bcc :+                  ;Less than 97, store char as is
+    bcc :++                 ;Less than 97, store char as is
     cpy #123
-    bcs :+                  ;Equal or greater than 123, store char as is
+    bcc :+                  ;Between 97 and 122 => Convert case
+    cpy #193
+    bcc :++                 ;Less than 193, store char as is
+    cpy #219
+    bcs :++                 ;Between 192 and 218 => Convert case
 
-    tya                     ;Char is lower case, clear bit 5 to convert to ASCII upper case
-    and #%11011111
+    ;Convert letter case
+:   tya                     ;Char is lower case, clear bit 5 to convert to ASCII upper case
+    and #%01011111
     bra store_char
 
-    ;Transfer char back to A
+    ; Use original char as is
 :   tya
 
     ;Store char in buffer
