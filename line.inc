@@ -671,8 +671,9 @@ symbol_found:
     pla
     bcs newvar
     cmp #1
-    beq insvar
-    cmp #2
+    bne :+
+    jmp insvar
+:   cmp #2
     bne :+ 
     jmp instoken
 
@@ -680,7 +681,27 @@ symbol_found:
 :   lda index_dst
     bne :+
     inc index_src
-    bra :+++
+    bra :++++
+
+:   lda last_token
+    cmp #$8d ; Gosub
+    beq :+
+    cmp #$89 ; Goto
+    beq :+
+    cmp #$9b ; List
+    beq :+
+    cmp #$8c ; Restore
+    beq :+
+    cmp #$a7 ; Then
+    beq :+
+    cmp #$a4 ; To
+    beq :+
+    
+    clc
+    lda #RESPONSE_LABEL_NOT_EXPECTED
+    jsr response_set
+    sec
+    rts
 
 :   lda #0
     jsr util_bin_to_bcd

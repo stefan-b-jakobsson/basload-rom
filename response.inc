@@ -33,10 +33,11 @@ RESPONSE_DUPLICATE_SYMBOL       = 3
 RESPONSE_SYMTBL_FULL            = 4
 RESPONSE_OUT_OF_VAR_NAMES       = 5
 RESPONSE_LABEL_EXPECTED         = 6
-RESPONSE_LINE_NUM_OVERFLOW      = 7
-RESPONSE_OPTION_UNKNOWN         = 8
-RESPONSE_FILE_ERROR             = 9
-RESPONSE_INVALID_PARAM          = 10
+RESPONSE_LABEL_NOT_EXPECTED     = 7
+RESPONSE_LINE_NUM_OVERFLOW      = 8
+RESPONSE_OPTION_UNKNOWN         = 9
+RESPONSE_FILE_ERROR             = 10
+RESPONSE_INVALID_PARAM          = 11
 
 
 ; Response messages
@@ -47,6 +48,7 @@ msg_duplicate_symbol: .byt "duplicate symbol in ", 0
 msg_symtbl_full: .byt "symbol table full", 0
 msg_out_of_var_names: .byt "out of variable names", 0
 msg_missing_label: .byt "label not found in ", 0
+msg_label_not_allowed: .byt "unexpected label in ", 0
 msg_line_num_overflow: .byt "line number overflow in ",0
 msg_option_unknown: .byt "unknown option in ", 0
 msg_file_error: .byt "file error in ",0
@@ -61,6 +63,7 @@ msg_pointers:
     .word msg_symtbl_full
     .word msg_out_of_var_names
     .word msg_missing_label
+    .word msg_label_not_allowed
     .word msg_line_num_overflow
     .word msg_option_unknown
     .word msg_file_error
