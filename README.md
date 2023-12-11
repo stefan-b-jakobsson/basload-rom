@@ -114,7 +114,7 @@ may include whitespace characters.
 
 The following options are supported:
 
-- ## An alternative comment never outputted to the resulting code
+- \## An alternative comment never outputted to the resulting code
 - #REM <0|1>, turns off (0) or on (1) output of REM statements. Default is off.
 - #INCLUDE <filename>, includes the content of another source file 
 - #AUTONUM <1..100>, sets the number of steps the line number is advanced for each line in the output
