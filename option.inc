@@ -30,9 +30,10 @@
 ;Input........: X = Option start index in file_buf
 ;Output.......: A = Return code
 ;                   00:          Unknown option
-;                   01: ##       Option was a comment
+;                   01: ##       Comment
 ;                   02: #REM     Option turns on or off output of REMs
-;                   03: #INCLUDE Option was an INCLUDE statement
+;                   03: #INCLUDE
+;                   04: #AUTONUM 
 ;                   fe:          Invalid param
 ;                   ff:          File error
 .proc option_parse
@@ -67,6 +68,9 @@ get_option:
     beq include
     cmp #4
     beq autonum
+    cmp #5
+    bne unknown
+    jmp controlcodes
 
 unknown:
     lda #0
@@ -78,9 +82,10 @@ comment:
 rem:
     ldx index1
     jsr option_get_int
-    bcs invalid
+    bcc :+
+    jmp invalid
 
-    stx tmp
+:   stx tmp
     ora tmp
     sta tmp
     tya
@@ -154,6 +159,24 @@ autonum:
     lda option_index
     rts
 
+controlcodes:
+    ldx index1
+    jsr option_get_int
+    bcs invalid
+    stx tmp
+    ora tmp
+    tya
+    ora tmp
+    beq :+
+    lda #1
+    sta line_option_controlcodes
+    jsr controlcode_add 
+    lda option_index
+    rts
+:   stz line_option_controlcodes
+    lda option_index
+    rts
+
 invalid:
     lda #$fe
     rts
@@ -172,9 +195,12 @@ invalid:
 ;Input........: X = Symbol start index in file_buf
 ;               Y = Symbol end index in file_buf
 ;Output.......: A = Option index
-;                   0:              Option not found
-;                   1: ##           Comment
-;                   2: #REM         Turn on or off REM output
+;                   0:                  Option not found
+;                   1: ##               Comment
+;                   2: #REM             Turn on or off REM output
+;                   3: #INCLUDE
+;                   4: #AUTONUM
+;                   5: #CONTROLCODES
 ;Error........: None
 .proc option_find
     ; Save input & init vars
@@ -236,6 +262,7 @@ options_tbl:
     .byt "rem",0
     .byt "include",0
     .byt "autonum", 0
+    .byt "controlcodes", 0
     .byt 0
 
 .segment "VARS"

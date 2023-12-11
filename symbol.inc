@@ -45,43 +45,42 @@
 ; head of these linked lists. The arrays are stored in RAM bank BASLOAD_RAM1.
 ; There is one head pointer for each possible hash value (0..255).
 ; 
-; An entry in the symbol table consists of 32 bytes as described below:
+; An entry in the symbol table contains the following information:
 ; 
 ; Offset Size Description
-; ------------------------------------------------------
-; 00     26   Symbol name
-; 26     01   Symbol name length
-; 27     01   Symbol type
-; 28     01   Next symbol, bank (0=null)
-; 29     01   Next symbol, offset
-; 30     02   Value (line number or short variable name)
+; -----------------------------------------------------------------------------
+; 00     03   Next symbol (bank, addrl, addrh), bank=0 => end of chain
+; 03     01   Symbol name length
+; 04     01   Symbol type
+; 05     02   Value
+; 07     ??   Symbol name, max 64 bytes
 ;
-; You can convert from offset to memory address as follows: 
-; address = offset * 32 + $A000
-;
-; The table may hold a maximum of 2,048 symbols.
+; The symbol table entry length varies according to the length of the symbol
+; name. If symbol names are 10 characters in avarage, the table fits
+; about 3,800 symbols.
 
 ; Exports needed for unit testing
-.export symbol_init, symbol_add, symbol_find, symbol_buckets_bank, symbol_buckets_offset, file_buf, line_dstlin, symbol_next_bank, symbol_next_offset, symbol_pointer
+.export symbol_init, symbol_add, symbol_find, symbol_buckets_bank, file_buf, line_dstlin, symbol_next_bank, symbol_pointer
 
 ; Banked RAM usage
-SYMBOL_FIRST_BANK = 2
-SYMBOL_LAST_BANK = 9
+SYMBOL_FIRST_BANK       = 2
+SYMBOL_LAST_BANK        = 9
 
 ; Symbol table entry fields
-SYMBOL_NAME = 0
-SYMBOL_LEN = 26
-SYMBOL_TYPE = 27
-SYMBOL_NEXT_BANK = 28
-SYMBOL_NEXT_OFFSET = 29
-SYMBOL_VALUE = 30
-SYMBOL_MAXLEN = 26
+SYMBOL_NEXT_BANK        = 0
+SYMBOL_NEXT_ADDR        = 1
+SYMBOL_LEN              = 3
+SYMBOL_TYPE             = 4
+SYMBOL_VALUE            = 5
+SYMBOL_NAME             = 7
+SYMBOL_MAXLEN           = 64
 
 ; Symbol entry types
-SYMBOLTYPE_LABEL = 0
-SYMBOLTYPE_VARIABLE = 1
-SYMBOL_TOKEN = 2
-SYMBOL_RESERVED_VAR = 3
+SYMBOLTYPE_LABEL        = 0
+SYMBOLTYPE_VARIABLE     = 1
+SYMBOLTYPE_TOKEN        = 2
+SYMBOLTYPE_RESERVED_VAR = 3
+SYMBOLTYPE_CONTROL_CHAR = 4
 
 ; Variables
 .ZEROPAGE
@@ -90,11 +89,12 @@ SYMBOL_RESERVED_VAR = 3
 .segment "VARS"
     symbol_next_var: .res 2
     symbol_next_bank: .res 1
-    symbol_next_offset: .res 1
+    symbol_next_addr: .res 2
 
 .segment "RAM1"
     symbol_buckets_bank: .res $100
-    symbol_buckets_offset: .res $100
+    symbol_buckets_addrl: .res $100
+    symbol_buckets_addrh: .res $100
 .CODE
 
 ;******************************************************************************
@@ -118,7 +118,9 @@ SYMBOL_RESERVED_VAR = 3
     ; Set next symbol table entry location in banked RAM
     lda #SYMBOL_FIRST_BANK
     sta symbol_next_bank
-    stz symbol_next_offset
+    stz symbol_next_addr
+    lda #$a0
+    sta symbol_next_addr+1
 
     ; Set next available variable name to "A"
     lda #'a'
@@ -135,7 +137,7 @@ SYMBOL_RESERVED_VAR = 3
     lda #$99
     sta token_next_id
     stz token_next_id+1
-    lda #SYMBOL_TOKEN
+    lda #SYMBOLTYPE_TOKEN
     jsr symbol_add
 
     ; Add reserved variables ST and TI to the symbol table
@@ -145,7 +147,7 @@ SYMBOL_RESERVED_VAR = 3
     sta file_buf+1
     ldx #0
     ldy #1
-    lda #SYMBOL_RESERVED_VAR
+    lda #SYMBOLTYPE_RESERVED_VAR
     jsr symbol_add
 
     lda #'t'
@@ -154,7 +156,7 @@ SYMBOL_RESERVED_VAR = 3
     sta file_buf+1
     ldx #0
     ldy #1
-    lda #SYMBOL_RESERVED_VAR
+    lda #SYMBOLTYPE_RESERVED_VAR
     jsr symbol_add
     
     rts
@@ -173,6 +175,7 @@ PRINT_TOKEN:
 ;                   1: Variable
 ;                   2: BASIC command/token
 ;                   3: Reserved variable, stored as type 1=variable
+;                   4: PETSCII control char
 ;               C   1: Skip duplicate check
 ;Output.......: X/Y Symbol value (low/high byte)
 ;               A   0: OK
@@ -191,7 +194,31 @@ PRINT_TOKEN:
     jsr symbol_find
     bcs :+ ; Symbol not found, continue
     lda #1
-    rts 
+    rts
+
+    ; Calculate len
+:   sec
+    lda index2
+    sbc index1
+    inc
+    sta len
+    cmp #SYMBOL_MAXLEN+1
+    bcc :+
+    lda #4
+    rts
+
+    ; Check if symbol table entry fits in current RAM bank
+:   clc
+    adc #7
+    adc symbol_next_addr
+    lda symbol_next_addr+1
+    adc #0
+    cmp #$c0
+    bcc :+
+    inc symbol_next_bank
+    stz symbol_next_addr        ; Symbol doesn't fit, select next RAM bank
+    lda #$a0
+    sta symbol_next_addr+1
 
     ; Check if symbol table is full
 :   lda symbol_next_bank
@@ -220,71 +247,63 @@ PRINT_TOKEN:
     beq :+
     inx
     bra :-
+
 :   sta hash
 
-    ; Calculate len
-    sec
-    lda index2
-    sbc index1
-    inc
-    sta len
-    cmp #SYMBOL_MAXLEN+1
-    bcc :+
-    lda #4
-    rts
-
     ; Check if bucket is empty
-:   lda #BASLOAD_RAM1
+    lda #BASLOAD_RAM1
     sta RAM_SEL
-    ldx hash
-    lda symbol_buckets_bank,x
+    ldy hash
+    lda symbol_buckets_bank,y
     bne bucket_not_empty
 
 bucket_empty:
     lda symbol_next_bank
-    sta symbol_buckets_bank,x
-    lda symbol_next_offset
-    sta symbol_buckets_offset,x
+    sta symbol_buckets_bank,y
+    lda symbol_next_addr
+    sta symbol_buckets_addrl,y
+    lda symbol_next_addr+1
+    sta symbol_buckets_addrh,y
     bra set_values
 
 bucket_not_empty:
-    pha
-    lda symbol_buckets_offset,x
-    plx ; find_tail expects bank in .X
+    tax ; Store bank in X
+    lda symbol_buckets_addrl,y
+    sta symbol_pointer
+    lda symbol_buckets_addrh,y
+    sta symbol_pointer+1
 
 find_tail:
     ; Select RAN bank where item is stored
     stx RAM_SEL
-    
-    ; Get address = offset * 32 + $a000
-    sta symbol_pointer
-    stz symbol_pointer+1
-    .repeat 5
-        asl symbol_pointer
-        rol symbol_pointer+1
-    .endrep
-    clc
-    lda symbol_pointer+1
-    adc #$a0
-    sta symbol_pointer+1
 
-    ; Get next bank field, 0 => we're at end of the linked list
+    ; Check if end of chain (bank=0)
     ldy #SYMBOL_NEXT_BANK
     lda (symbol_pointer),y
     beq tail_found
     
     ; There're more items in the list, prepare to look at next item
     tax ; Next bank stored in X
-    iny ; Index for next offset
+    ldy #SYMBOL_NEXT_ADDR
     lda (symbol_pointer),y
+    pha
+    iny
+    lda (symbol_pointer),y
+    sta symbol_pointer+1
+    pla
+    sta symbol_pointer
     bra find_tail
 
 tail_found:
     ; Store link to the new item we're inserting in the current tail item
+    lda #SYMBOL_NEXT_BANK
     lda symbol_next_bank
     sta (symbol_pointer),y
+    ldy #SYMBOL_NEXT_ADDR
+    lda symbol_next_addr
+    sta (symbol_pointer),y
     iny
-    lda symbol_next_offset
+    lda symbol_next_addr+1
     sta (symbol_pointer),y
 
 set_values:
@@ -292,17 +311,10 @@ set_values:
     lda symbol_next_bank
     sta RAM_SEL
 
-    ; Set address to new item = offset * 32 + $a000
-    lda symbol_next_offset
+    ; Set address to new item
+    lda symbol_next_addr
     sta symbol_pointer
-    stz symbol_pointer+1
-    .repeat 5
-        asl symbol_pointer
-        rol symbol_pointer+1
-    .endrep
-    clc
-    lda symbol_pointer+1
-    adc #$a0
+    lda symbol_next_addr+1
     sta symbol_pointer+1
 
     ; Copy symbol name
@@ -316,8 +328,8 @@ set_values:
     iny
     bra :-
 
-:   ; Set symbol name len
-    ldy #SYMBOL_LEN
+    ; Set symbol name len
+:   ldy #SYMBOL_LEN
     lda len
     sta (symbol_pointer),y
 
@@ -394,13 +406,13 @@ chk_var:
 
 chk_var_loop:
     ; Compare first char
-    lda symbol_reserved_vars,x
+    lda SYMBOLTYPE_RESERVED_VARs,x
     inx
     cmp symbol_next_var
     bne :+
     
     ; Compare second char
-    lda symbol_reserved_vars,x
+    lda SYMBOLTYPE_RESERVED_VARs,x
     inx
 
     ; There's a match in the reserved names table => try again
@@ -408,13 +420,13 @@ chk_var_loop:
     beq inc_var
 
     ; Are we done?
-    cpx #symbol_reserved_vars_end-symbol_reserved_vars
+    cpx #SYMBOLTYPE_RESERVED_VARs_end-SYMBOLTYPE_RESERVED_VARs
     bne chk_var_loop
     bra :++
 
 :   ; Are we done?
     inx
-    cpx #symbol_reserved_vars_end-symbol_reserved_vars
+    cpx #SYMBOLTYPE_RESERVED_VARs_end-SYMBOLTYPE_RESERVED_VARs
     bne chk_var_loop
 
 :   ; Pull symbol low value from stack
@@ -422,8 +434,8 @@ chk_var_loop:
     bra exit
 
 reserved_var:
-    cmp #SYMBOL_RESERVED_VAR
-    bne token
+    cmp #SYMBOLTYPE_RESERVED_VAR
+    bne control_char
 
     ldy #SYMBOL_TYPE
     lda #SYMBOLTYPE_VARIABLE
@@ -443,6 +455,18 @@ reserved_var:
     ldy #0
     bra exit
 
+control_char:
+    cmp #SYMBOLTYPE_CONTROL_CHAR
+    bne token
+
+    ldy #SYMBOL_VALUE
+    lda controlcode_value
+    sta (symbol_pointer),y
+    iny
+    lda #0
+    sta (symbol_pointer),y
+    bra exit
+
 token:
     ldy #SYMBOL_VALUE
     lda token_next_id
@@ -452,14 +476,24 @@ token:
     sta (symbol_pointer),y
 
 exit:
-    ; Select next offset
-    inc symbol_next_offset
-    bne :+
-    
-    ; Increment bank
-    inc symbol_next_bank
+    ; Set next item address
+    clc
+    lda symbol_next_addr
+    adc len
+    sta symbol_next_addr
+    lda symbol_next_addr+1
+    adc #0
+    sta symbol_next_addr+1
 
-:   lda #0
+    clc
+    lda symbol_next_addr
+    adc #7
+    sta symbol_next_addr
+    lda symbol_next_addr+1
+    adc #0
+    sta symbol_next_addr+1
+
+    lda #0
     rts
 
 .segment "VARS"
@@ -481,6 +515,8 @@ exit:
 ;                   0: Label
 ;                   1: Variable
 ;                   2: BASIC token
+;                   3: Reserved variable, stored as type 1=variable
+;                   4: PETSCII control char
 ;Error........: C=1 if label not found
 .proc symbol_find
     ; Store input params
@@ -510,28 +546,20 @@ exit:
     lda #BASLOAD_RAM1               ; Select RAM bank 1
     sta RAM_SEL
     
-    ldx hash
-    lda symbol_buckets_bank,x
+    ldy hash
+    lda symbol_buckets_bank,y
     beq not_found                   ; Bucket head was null => symbol doesn't exist
 
     ; OK, let's look what we find in the symbol table...
-    tay                             ; Store bank in Y temporarily
+    tax                             ; Store bank in X temporarily
 
-    lda symbol_buckets_offset,x     ; Get offset
+    lda symbol_buckets_addrl,y
     sta symbol_pointer
-    stz symbol_pointer+1
-
-loop:
-    .repeat 5                       ; Calculate offset x 32 + $a000 to get bucket item address
-        asl symbol_pointer
-        rol symbol_pointer+1
-    .endrep
-    clc
-    lda symbol_pointer+1
-    adc #$a0
+    lda symbol_buckets_addrh,y
     sta symbol_pointer+1
-    
-    sty RAM_SEL                     ; Set RAM bank where item is stored
+
+loop:    
+    stx RAM_SEL                     ; Set RAM bank where item is stored
 
     ldy #SYMBOL_LEN                 ; Compare lengths
     lda (symbol_pointer),y
@@ -555,11 +583,16 @@ next:                               ; It wasn't a match, look at next item in th
     beq not_found                   ; Next bank = 0 => No more items in this bucket
     
     pha                             ; Store bank on stack
-    ldy #SYMBOL_NEXT_OFFSET
+    ldy #SYMBOL_NEXT_ADDR
     lda (symbol_pointer),y
+    pha
+    iny
+    lda (symbol_pointer),y
+    sta symbol_pointer+1
+    pla
     sta symbol_pointer
-    stz symbol_pointer+1
-    ply                             ; Get bank
+    
+    plx                             ; Get bank from stack
     bra loop
 
 found:
@@ -589,7 +622,7 @@ not_found:
 
 .endproc
 
-symbol_reserved_vars:
+SYMBOLTYPE_RESERVED_VARs:
     .byt "da"
     .byt "if"
     .byt "fn"
@@ -602,4 +635,4 @@ symbol_reserved_vars:
     .byt "st"
     .byt "ti"
     .byt "to"
-symbol_reserved_vars_end:
+SYMBOLTYPE_RESERVED_VARs_end:

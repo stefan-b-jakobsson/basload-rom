@@ -10,6 +10,8 @@ LINE_BINNUM = 8
 LINE_DECNUM = 10
 LINE_SYMBOL = 12
 LINE_DATA = 14
+LINE_CURLY = 16
+LINE_BACKSLASH = 18
 
 ; Variables
 .ZEROPAGE
@@ -20,6 +22,7 @@ LINE_DATA = 14
     line_dstlin: .res 2
     line_option_rem: .res 1
     line_autonum: .res 1
+    line_option_controlcodes: .res 1
 .CODE
 
 ;******************************************************************************
@@ -49,6 +52,7 @@ LINE_DATA = 14
 
     ; Set default options
     stz line_option_rem ; Remove REms
+    stz line_option_controlcodes
 
     rts
 .endproc
@@ -271,7 +275,7 @@ symbol_exists:
     cmp #0
     beq symbol_dup
 :   cmp #2
-    beq symbol_token
+    beq SYMBOLTYPE_TOKEN
     bra symbol_end
 
 symbol_dup:
@@ -281,7 +285,7 @@ symbol_dup:
     sec
     rts
 
-symbol_token:
+SYMBOLTYPE_TOKEN:
     cpx #$8f    ; REM statement?
     bne symbol_end
     
@@ -546,11 +550,42 @@ remark:
 :   jmp next
 
 string:
+    ; Check end of string
     cmp #34 ; Double quote
     bne :+
     ldx #LINE_DEFAULT_ELEMENT
     stx state
-:   jmp copy
+    jmp copy
+
+    ; Check if backslash "\" => change state and discard char
+:   cmp #$5c ; Backslash
+    bne :+
+    lda #LINE_BACKSLASH
+    sta state
+    jmp next
+
+    ; Save char on stack
+:   pha
+
+    ; Check if controlcode option is active
+    ldx line_option_controlcodes
+    beq :+ ; no
+
+    ; Check if left curly bracket "{" => start of control code
+    cmp #123 ; Left curly bracket
+    bne :+ ; no
+
+    ; We are at start of a control code, set state and discard char
+    pla
+    lda #LINE_CURLY
+    sta state
+    lda index_src
+    sta curly_start_index
+    jmp next
+
+    ; Default behavior, copy char to output
+:   pla
+    jmp copy
 
 hexnum:
     ; 0..9?
@@ -784,10 +819,11 @@ insvar:
     ldx index_src
     lda file_buf,x
     cmp #'$'
-    beq copy
+    beq :+
     cmp #'%'
-    beq copy
+    beq :+
     jmp loop
+:   jmp copy
 
 instoken:
     stx last_token
@@ -854,6 +890,40 @@ data:
 :   txa
     jmp copy
 
+curly:
+    ; Check if right curly bracket "}" marking the end of a control code
+    cmp #125
+    beq :+
+
+    ; Check if double quote marking the end of string
+    cmp #34
+    beq curly_err
+    jmp next
+
+:   ldx curly_start_index
+    ldy index_src
+    jsr symbol_find
+    bcs curly_err
+    txa
+    ldy index_dst
+    sta (line_code),y
+    inc index_dst
+    lda #LINE_STRING
+    sta state
+    jmp next
+
+curly_err:
+    lda #RESPONSE_INVALID_CONTROLCODE
+    clc
+    jsr response_set
+    sec
+    rts
+
+backslash:
+    ldx #LINE_STRING
+    stx state
+    jmp copy
+
 copy:
     ; Copy current char to BASIC memory
     ldy index_dst
@@ -866,16 +936,17 @@ next:
     jmp loop
 
 jump_table:
-    .word default, remark, string, hexnum, binnum, decnum, symbol, data
+    .word default, remark, string, hexnum, binnum, decnum, symbol, data, curly, backslash
 
 .segment "VARS"
     state: .res 1
     index_src: .res 1
-    symbol_start: .res 1
+    symbol_start: .res 1    
     dp_count: .res 1
     index_dst: .res 1
     last_token: .res 2
     quotes_count: .res 1
     option_start: .res 1
+    curly_start_index: .res 1
 .CODE
 .endproc

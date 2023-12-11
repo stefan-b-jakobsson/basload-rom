@@ -237,6 +237,7 @@ err:
     ; Init
     stz index
     stz quotes
+    stz curly
 
     ; Increment source line counter
     ldx file_cur_num
@@ -259,53 +260,57 @@ loop:
     bne :+
     cpx #13
     beq next
-    bra eol
+    jmp eol
 
 :   cmp #13                 ;CR
-    beq eol
+    bne :+
+    jmp eol
 
     ;Check line length
-    ldx index
+:   ldx index
     cpx #250
     bcc :+
 
     lda #3
     rts
 
-:   ;Check quote
-    cmp #34
-    bne :+
-    inc quotes
-    bra store_char
-
     ;Convert $DE to $FE
 :   cmp #$de
     bne :+
     lda #$ff
 
-    ;Store char in Y
-:   tay
-
-    ;Convert to ASCII upper case if not within a string
-    lda quotes
-    and #%00000001
-    bne :++                 ;Within string, store char as is
-
-    cpy #97
-    bcc :++                 ;Less than 97, store char as is
-    cpy #123
-    bcc :+                  ;Between 97 and 122 => Convert case
-    cpy #193
-    bcc :++                 ;Less than 193, store char as is
-    cpy #219
-    bcs :++                 ;Between 192 and 218 => Convert case
-
-    ;Convert letter case
-:   tya                     ;Char is lower case, clear bit 5 to convert to ASCII upper case
-    and #%01011111
+    ;Update quote count
+:   cmp #34
+    bne :+
+    inc quotes
     bra store_char
 
-    ; Use original char as is
+    ;Update curly brackets count, if controlcodes mode is on
+:   ldy line_option_controlcodes
+    beq convert
+    cmp #123
+    bne :+
+    inc curly
+    bra store_char
+:   cmp #125
+    bne convert
+    dec curly
+    bra store_char
+    
+    ;Convert case if not within string or within curly brackets
+convert:
+    tay
+    lda curly
+    bne :+
+
+    lda quotes
+    and #%00000001
+    bne :++
+
+:   tya
+    charcase_convert
+    bra store_char
+
 :   tya
 
     ;Store char in buffer
@@ -318,8 +323,9 @@ next:
     bridge_setaddr KERNAL_READST
     bridge_call
     cmp #0                  ;Status = 0 => Continue reading
-    beq loop
-    cmp #64                 ;Status = 64 => End of file without errors
+    bne :+
+    jmp loop
+:   cmp #64                 ;Status = 64 => End of file without errors
     beq eof
     
 error:                      ;Status != 0 && != 64 => An error
@@ -364,6 +370,7 @@ eol:
 .segment "VARS"
     index: .res 1
     quotes: .res 1
+    curly: .res 1
 .CODE
 .endproc
 

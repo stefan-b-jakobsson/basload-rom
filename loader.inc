@@ -37,10 +37,11 @@
     ldy #>msg_ok
     sec
     jsr response_set
-    
+
     ;Prepare pass 1
     jsr symbol_init
     jsr token_init
+    jsr controlcode_init
     jsr line_init
     jsr file_init
 
@@ -125,7 +126,7 @@ eof2:
 exit:
     jsr file_init
     bridge_setaddr KERNAL_CLRCHN
-    bridge_call
+    bridge_call  
     rts
 
 .endproc

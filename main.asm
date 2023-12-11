@@ -177,6 +177,7 @@ exit:
     goldenram_backup: .res $045e
 .CODE
 
+.include "charcase.inc"
 .include "bridge.inc"
 .include "file.inc"
 .include "line.inc"
@@ -187,3 +188,4 @@ exit:
 .include "loader.inc"
 .include "response.inc"
 .include "pearson.inc"
+.include "controlcode.inc"
