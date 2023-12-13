@@ -189,3 +189,4 @@ exit:
 .include "response.inc"
 .include "pearson.inc"
 .include "controlcode.inc"
+.include "symfile.inc"

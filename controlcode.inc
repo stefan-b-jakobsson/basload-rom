@@ -155,7 +155,6 @@ codes:
     .byt $08, $7B, "insert", $7D, $94
     .byt $07, $7B, "brown", $7D, $95
     .byt $0B, $7B, "light red", $7D, $96
-    .byt $0B, $7B, "light red", $7D, $96
     .byt $08, $7B, "grey 3", $7D, $97
     .byt $08, $7B, "grey 2", $7D, $98
     .byt $0D, $7B, "light green", $7D, $99

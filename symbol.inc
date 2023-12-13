@@ -88,6 +88,7 @@ SYMBOLTYPE_CONTROL_CHAR = 4
 
 .segment "VARS"
     symbol_next_var: .res 2
+    symbol_last_var: .res 2
     symbol_next_bank: .res 1
     symbol_next_addr: .res 2
 
@@ -127,6 +128,10 @@ SYMBOLTYPE_CONTROL_CHAR = 4
     sta symbol_next_var
     lda #0
     sta symbol_next_var+1
+
+    ; Set last variable name to NULL
+    stz symbol_last_var
+    stz symbol_last_var+1
 
     ; Add ? as PRINT statement
     lda #'?'
@@ -371,6 +376,12 @@ variable:
     lda symbol_next_var+1
     sta (symbol_pointer),y
     tay
+
+    ; Remember last assigned variable
+    lda symbol_next_var
+    sta symbol_last_var
+    lda symbol_next_var+1
+    sta symbol_last_var+1   
 
 inc_var:
     ; Advance second character of the next available variable name

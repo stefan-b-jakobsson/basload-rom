@@ -39,7 +39,8 @@ RESPONSE_OPTION_UNKNOWN         = 9
 RESPONSE_FILE_ERROR             = 10
 RESPONSE_INVALID_PARAM          = 11
 RESPONSE_INVALID_CONTROLCODE    = 12
-
+RESPONSE_INVALID_SYMFILE        = 13
+RESPONSE_SYMFILE_IO_ERR         = 14
 
 ; Response messages
 msg_ok: .byt "success", 0
@@ -55,6 +56,8 @@ msg_option_unknown: .byt "unknown option in ", 0
 msg_file_error: .byt "file error in ",0
 msg_invalid_param: .byt "invalid parameter in ", 0
 msg_invalid_controlcode: .byt "invalid control code in ",0
+msg_invalid_symfile: .byt "symfile not allowed in ", 0
+msg_symfile_io_err: .byt "couldn not open symfile in ", 0
 
 ; Response message pointers
 msg_pointers:
@@ -71,6 +74,8 @@ msg_pointers:
     .word msg_file_error
     .word msg_invalid_param
     .word msg_invalid_controlcode
+    .word msg_invalid_symfile
+    .word msg_symfile_io_err
 
 ;******************************************************************************
 ;Function name: response_set
@@ -142,7 +147,7 @@ line_num:
     sta RAM_SEL
 
     lda file_line_from  ; Get file number that the current source line was read from
-    dea                 ; First file number is 2, decrement by 2 to get index in the file names table
+    dea
     dea
     sta TEMP1
     stz TEMP1+1
@@ -195,6 +200,7 @@ line_num:
 
     ; Convert line number to string
     jsr util_bin_to_bcd
+    lda #0
     jsr util_bcd_to_str
     stx TEMP1
     sty TEMP1+1

@@ -23,6 +23,7 @@ LINE_BACKSLASH = 18
     line_option_rem: .res 1
     line_autonum: .res 1
     line_option_controlcodes: .res 1
+    line_pass: .res 1
 .CODE
 
 ;******************************************************************************
@@ -168,6 +169,11 @@ default:
     sec
     rts
 
+:   cmp #$fd
+    bne :+
+    sec
+    rts
+    
 :   jmp eol
     
     ; Symbol start?
@@ -217,11 +223,13 @@ symbol_chk:
     bcc symbol_exists
     
     lda index_dst
-    bne symbol_end
-    ldx index_src
+    beq :+
+    jmp symbol_end
+:   ldx index_src
     lda file_buf,x
     cmp #':'
-    bne symbol_end
+    beq is_label
+    jmp symbol_end
 
 is_label:
     ldx symbol_start
@@ -265,7 +273,16 @@ is_label:
     rts
 
 is_label2:
-    stz state
+    lda symfile_active
+    beq :+
+    ldx symbol_start
+    ldy index_src
+    dey
+    jsr symfile_write_label
+    bcc :+
+    rts ; error
+
+:   stz state
     jmp next
 
 symbol_exists:
@@ -740,6 +757,7 @@ symbol_found:
 
 :   lda #0
     jsr util_bin_to_bcd
+    lda #0
     jsr util_bcd_to_str
     stx TEMP1
     sty TEMP1+1
@@ -764,7 +782,7 @@ newvar:
     lda #1 ; variable
     jsr symbol_add
     cmp #0
-    beq insvar
+    beq newvar_ok
     cmp #1
     bne :+
     clc
@@ -796,6 +814,20 @@ newvar:
     jsr response_set
     sec
     rts
+
+newvar_ok:
+    lda symfile_active
+    beq insvar
+
+    phx
+    phy
+    ldx symbol_start
+    ldy index_src
+    jsr symfile_write_variable
+    ply
+    plx
+    bcc insvar
+    rts ; error
     
 insvar:
    ; Store variable value to BASIC memory

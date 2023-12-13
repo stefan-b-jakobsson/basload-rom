@@ -39,21 +39,25 @@
     jsr response_set
 
     ;Prepare pass 1
+    lda #1
+    sta line_pass
     jsr symbol_init
     jsr token_init
     jsr controlcode_init
     jsr line_init
     jsr file_init
+    jsr symfile_init
 
     ldx #<file_main_name
     ldy #>file_main_name
     lda file_main_len
     jsr file_open
     cmp #0
-    bne exit
+    beq pass1_loop
+    jmp exit
 
     ;Read and process each line
-pass1_loop:   
+pass1_loop:
     jsr file_readln
     cmp #2
     beq err1a
@@ -78,7 +82,15 @@ err1b:
 
 eof1:
     ;Prepare pass 2
-    jsr line_init
+    lda #2
+    sta line_pass
+
+    lda symfile_active
+    beq :+
+    jsr symfile_header2
+    bcs err2a
+
+:   jsr line_init
     jsr file_init
     ldx #<file_main_name
     ldy #>file_main_name
@@ -124,6 +136,7 @@ eof2:
     sta KERNAL_STREND+1
 
 exit:
+    jsr symfile_close
     jsr file_init
     bridge_setaddr KERNAL_CLRCHN
     bridge_call  

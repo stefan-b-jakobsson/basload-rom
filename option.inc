@@ -33,7 +33,9 @@
 ;                   01: ##       Comment
 ;                   02: #REM     Option turns on or off output of REMs
 ;                   03: #INCLUDE
-;                   04: #AUTONUM 
+;                   04: #AUTONUM
+;                   05; #SYMFILE 
+;                   fd:          Symfile error
 ;                   fe:          Invalid param
 ;                   ff:          File error
 .proc option_parse
@@ -69,8 +71,11 @@ get_option:
     cmp #4
     beq autonum
     cmp #5
-    bne unknown
+    bne :+ 
     jmp controlcodes
+:   cmp #6
+    bne unknown
+    jmp symfile
 
 unknown:
     lda #0
@@ -118,20 +123,25 @@ autonum:
     ; Get step value
     ldx index1
     jsr option_get_int
-    bcs invalid
+    bne :+
+    jmp invalid
     
     ; Values 1-100 are valid
-    cpy #1
-    bcs invalid
-    cmp #1
-    bcs invalid
-    cpx #0
-    beq invalid
-    cpx #101
-    bcs invalid
+:   cpy #1
+    bcc :+
+    jmp invalid
+:   cmp #1
+    bcc :+
+    jmp invalid
+:   cpx #0
+    bne :+
+    jmp invalid
+:   cpx #101
+    bcc :+
+    jmp invalid
 
     ; Store new step value
-    stx tmp
+:   stx tmp
 
     ; Rewind line number using the old step value
     sec
@@ -175,6 +185,46 @@ controlcodes:
     rts
 :   stz line_option_controlcodes
     lda option_index
+    rts
+
+symfile:
+    ; SYMFILE is only activated during pass 1
+    lda line_pass
+    cmp #1
+    bne :+
+
+    ; SYMFILE can only be activated once, before any output has been written
+    lda line_dstlin
+    cmp #2
+    bcs symfile_err1
+    lda line_dstlin+1
+    bne symfile_err1
+
+    ; Activate and open symfile 
+    lda #1
+    sta symfile_active
+
+    ldx index1
+    jsr option_get_string
+    jsr symfile_open
+    bcs symfile_err2
+    jsr symfile_header1
+    bcs symfile_err2
+:   lda option_index
+    rts
+
+symfile_err1:
+    lda #RESPONSE_INVALID_SYMFILE
+    clc
+    jsr response_set
+    lda #$fd
+    rts
+
+symfile_err2:
+    lda #RESPONSE_SYMFILE_IO_ERR
+    clc
+    jsr response_set
+    lda #$fd
     rts
 
 invalid:
@@ -263,6 +313,7 @@ options_tbl:
     .byt "include",0
     .byt "autonum", 0
     .byt "controlcodes", 0
+    .byt "symfile", 0
     .byt 0
 
 .segment "VARS"

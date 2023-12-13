@@ -69,6 +69,10 @@ loop:
     ; Clear input channel
     bridge_setaddr KERNAL_CLRCHN
     bridge_call
+    
+    bridge_setaddr KERNAL_CHKOUT
+    ldx #SYMFILE_NUMBER
+    bridge_call
 
     ; Clear values
     stz file_err
@@ -84,6 +88,9 @@ loop:
 ;Output.......: A = 0 if successful
 ;Errors.......: A = error code if failed
 .proc file_open
+    ;Clear symfile flag
+    stz symfile_file_printed_flag
+    
     ;Clear error
     stz file_err
 
@@ -215,12 +222,16 @@ err:
     dec file_cur_num
     ldx file_cur_num
     bridge_call
+
+    ;Clear symfile flag
+    stz symfile_file_printed_flag
     rts
 
 :   lda #1
     sta file_cur_num
     bridge_setaddr KERNAL_CLRCHN
     bridge_call
+
     rts
 .endproc
 
@@ -382,7 +393,7 @@ eol:
 ;Errors.......: Nothing
 .proc file_get_srclin
     ldx file_line_from
-
+    
     lda file_srclin_L-2,x
     pha
     lda file_srclin_M-2,x

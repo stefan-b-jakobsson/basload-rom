@@ -101,10 +101,13 @@ loop:
 ;Function name.......: util_bcd_to_str
 ;Purpose.............: Converts a BCD value to a null terminated string
 ;Input...............: Pointer to 32 bit BCD value, X=AddressL, Y=AddressH
+;                      A=Minimum width, zero pad if less
 ;Returns.............: Pointer to string, X=AddressL, Y=AddressH
+;                      A=String length
 ;Errors..............: None
 .proc util_bcd_to_str
     ;Copy input to local memory
+    sta width
     stx util_ptr
     sty util_ptr+1
     ldy #0
@@ -116,7 +119,7 @@ loop:
     bne :-
 
     ;Clear output
-    ldx #9
+    ldx #8
 :   stz output,x
     dex
     bne :-
@@ -153,13 +156,26 @@ strip_leading_zeros:
     ldx #0
 :   lda output,x
     cmp #48
-    bne exit
+    bne pad
     inx
     cpx #7          ;We must break this search at position 7. Otherwise 0 would be an empty string.
     bcc :-
 
+pad:
+    lda width
+    beq :+
+
+:   sec
+    lda #8
+    sbc width
+    sta width
+
+    cpx width
+    bcs exit
+    
+    txa
+
 exit:
-    txa             ;Start of string from search for non 0 value above; added to the output pointer
     clc
     adc #<output
     tax
@@ -169,6 +185,7 @@ exit:
  
     rts
 .segment "VARS"
+    width: .res 1
     input: .res 4
     output: .res 9
 .CODE
