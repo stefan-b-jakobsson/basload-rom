@@ -121,10 +121,10 @@ The following options are supported:
 
 - \## An alternative comment never outputted to the runnable code.
 - \#REM 0|1, turns off (0) or on (1) output of REM statements ti the runnable code. Default is off.
-- \#INCLUDE \filename, includes the content of another source file. 
+- \#INCLUDE "file name", includes the content of another source file. 
 - \#AUTONUM 1..100, sets the number of steps the line number is advanced for each line in the runnable code.
 - \#CONTROLCODES 0|1, turns off (0) or on (1) support for named PETSCII control characters, for instance {WHITE} or {CLEAR}.
-- \#SYMFILE \filename, writes a symbol table for debugging purposes to the specified file name. Add @: before the file name if you want to overwrite an existing file. This option may only occur once in the source code, before any BASIC code has been outputted.
+- \#SYMFILE "file name", writes a symbol table for debugging purposes to the specified file name. Add @: before the file name if you want to overwrite an existing file. This option may only occur once in the source code, before any BASIC code has been outputted.
 
 ## Running BASLOAD
 
