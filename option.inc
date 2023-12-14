@@ -121,9 +121,10 @@ include:
 
 autonum:
     ; Get step value
+    .byt $db
     ldx index1
     jsr option_get_int
-    bne :+
+    bcc :+
     jmp invalid
     
     ; Values 1-100 are valid
