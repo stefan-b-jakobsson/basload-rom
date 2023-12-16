@@ -32,7 +32,7 @@
     source code in plain text format from the SD card and converts it to 
     runnable BASIC programs.
 
-    The goal of BASLOAD is to make it more convenient to do BASIC programming.
+    The goal of BASLOAD is to make BASIC programming for the Commander X16 more convenient.
 
     The main benefits of BASLOAD are:
 
@@ -72,6 +72,9 @@
 
     The program is now loaded into memory. You can type LIST to
     show it and RUN to execute it.
+
+    If you get a ?Syntax Error, it means that BASLOAD is not
+    present in your ROM.
 
 \section{Source Code Files}
 
@@ -229,6 +232,7 @@
             \item \#REM
             \item \#INCLUDE
             \item \#AUTONUM
+            \item \#CONTROLCODES
             \item \#SYMFILE
         \end{itemize}
 
@@ -282,7 +286,7 @@
     \subsection{Option: \#AUTONUM 0 $|$ 1}
 
         The autonum option makes it possible to set how many
-        steps the line numbers in the resulting code are
+        steps the line number of the resulting code is
         advanced for each outputted line.
 
         The option takes effect from the line where it is
@@ -293,13 +297,43 @@
         The default step value is 1.
 
         This option may come in handy if you want to make
-        room for debugging code that you insert in directly
-        into the runnable code.
+        room to insert code directly into the runnable code,
+        for instance for debugging.
         
         Example that advances the output line counter 10 steps per line
         \begin{verbatim}
     #AUTONUM 10
         \end{verbatim}
+
+    \subsection{Option: \#CONTROLCODES 0 $|$ 1}
+        The controlcodes option makes it possible to type
+        named PETSCII control characters, such as arrow up or
+        down.
+
+        The available named control characters are listed in
+        Appendix A.
+
+        The controlcodes option takes effect form the line
+        where it is encountered and remains in force until
+        changed. It is possible to set and change the
+        option multiple times in the source code.
+
+        The default value is 0 (off).
+
+        The named control characters are only available
+        within a string.
+
+        If you want to put a left curly bracket or a 
+        backslash in a string, you need to escape each of them with 
+        a backslash while this option is active.
+
+        Examples:
+
+    \begin{verbatim}
+    #CONTROLCODES 1
+    PRINT "{CLEAR}Hello, world": REM {CLEAR}->PETSCII $93
+    PRINT "\{CLEAR} clears the screen": REM {CLEAR} unconverted
+    \end{verbatim}
 
     \subsection{Option: \#SYMFILE "@:filename"}
 
@@ -331,7 +365,7 @@
     \subsection{Planned Interface}
 
         There are two ways planned to start BASLOAD, neither of which is yet
-        accepted in the Kernal.
+        part of the official ROM.
 
         The first method is to use a dedicated BASIC command, like BASLOAD "filename".
 
@@ -394,7 +428,7 @@
     put this line in the source code:
 
     \begin{verbatim}
-    #CONTROLCHARS 1
+    #CONTROLCODES 1
     \end{verbatim}
 
     \begin{longtable}[l]{l l l}
