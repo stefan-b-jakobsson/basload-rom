@@ -121,7 +121,6 @@ include:
 
 autonum:
     ; Get step value
-    .byt $db
     ldx index1
     jsr option_get_int
     bcc :+
