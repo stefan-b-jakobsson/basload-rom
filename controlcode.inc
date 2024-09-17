@@ -167,5 +167,20 @@ codes:
     .byt $05, $7B, "yel", $7D, $9E
     .byt $06, $7B, "cyan", $7D, $9F
     .byt $05, $7B, "cyn", $7D, $9F
+    .byt $0a, $7B, "vga blue", $7d, $05
+    .byt $0b, $7B, "vga green", $7d, $1c
+    .byt $0a, $7B, "vga cyan", $7D, $9f
+    .byt $09, $7B, "vga red", $7D, $9c
+    .byt $0d, $7B, "vga magenta", $7D, $1e
+    .byt $0b, $7B, "vga brown", $7D, $1f
+    .byt $10, $7B, "vga light gray", $7D, $9e
+    .byt $0a, $7B, "vga gray", $7D, $81
+    .byt $10, $7B, "vga light blue", $7D, $95
+    .byt $11, $7B, "vga light green", $7D, $96
+    .byt $10, $7B, "vga light cyan", $7D, $97
+    .byt $0f, $7B, "vga light red", $7D, $98
+    .byt $15, $7B, "vga light magenta} ", $7D, $99
+    .byt $0c, $7B, "vga yellow", $7D, $9a
+    .byt $0b, $7B, "vga white", $7D, $9b
     .byt 0
 .endproc
