@@ -179,7 +179,7 @@ codes:
     .byt $11, $7B, "vga light green", $7D, $96
     .byt $10, $7B, "vga light cyan", $7D, $97
     .byt $0f, $7B, "vga light red", $7D, $98
-    .byt $15, $7B, "vga light magenta} ", $7D, $99
+    .byt $15, $7B, "vga light magenta", $7D, $99
     .byt $0c, $7B, "vga yellow", $7D, $9a
     .byt $0b, $7B, "vga white", $7D, $9b
     .byt 0
