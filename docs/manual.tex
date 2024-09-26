@@ -130,6 +130,7 @@
         \begin{itemize}
             \item A letter A--Z
             \item A digit 0--9 
+            \item An underscore 
             \item A decimal point (.)
         \end{itemize}
 
@@ -234,6 +235,7 @@
             \item \#AUTONUM
             \item \#CONTROLCODES
             \item \#SYMFILE
+            \item \#SAVEAS
         \end{itemize}
 
         The argument is separated from the option name by one or more whitespace characters. It
@@ -360,6 +362,12 @@
     #SYMFILE "@:MYPRG.SYM"
         \end{verbatim}
 
+    \subsection{Option: \#SAVEAS "@:MYPROGRAM.PRG"}
+        
+        This option autosaves the tokenized program to the
+        specified file name. Preprend the file name by
+        @: if you always want to overwrite an existing file.
+    
 \section{Running BASLOAD}
 
     \subsection{Planned Interface}
