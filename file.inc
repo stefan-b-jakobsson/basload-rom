@@ -145,6 +145,7 @@ loop:
     bridge_setaddr KERNAL_CHKIN
     ldx file_cur_num
     bridge_call
+    bcs err
 
     ; Return value, 0 = OK
     jsr file_set_status_as_response
@@ -526,9 +527,9 @@ err:
 
     ldx file_err
     dex
-    lda file_ioerr_H,x
-    sta TEMP1
     lda file_ioerr_L,x
+    sta TEMP1
+    lda file_ioerr_H,x
     sta TEMP1+1
 
     stz RAM_SEL
