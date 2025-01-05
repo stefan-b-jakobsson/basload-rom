@@ -24,6 +24,7 @@ LINE_BACKSLASH = 18
     line_autonum: .res 1
     line_option_controlcodes: .res 1
     line_pass: .res 1
+    mem_top: .res 2
 .CODE
 
 ;******************************************************************************
@@ -42,14 +43,41 @@ LINE_BACKSLASH = 18
     lda #1
     sta line_autonum
 
-    ; Setup pointers to BASIC memory, starting at $0801
-    lda #$01
+    ; Setup pointers to BASIC memory
+    bridge_setaddr KERNAL_MEMBOT    ; Get start of BASIC memory
+    sec
+    bridge_call
+    stx line_meta
+    sty line_meta+1
+    
+    lda #0                          ; Store 0 at first address
+    sta (line_meta)
+
+    clc                             ; First line begins at memory bottom + 1 (line number, pointer to next line)
+    lda line_meta
+    adc #1
     sta line_meta
-    lda #$05
-    sta line_code
-    lda #$08
+    lda line_meta+1
+    adc #0
     sta line_meta+1
+
+    clc                             ; Actual code begins at start + 5
+    lda line_meta
+    adc #4
+    sta line_code
+    lda line_meta+1
+    adc #0
     sta line_code+1
+
+    bridge_setaddr KERNAL_MEMTOP
+    sec
+    bridge_call
+    cpy #0
+    bne :+
+    dex
+:   dey
+    stx mem_top
+    sty mem_top+1
 
     ; Set default options
     stz line_option_rem ; Remove REms
@@ -366,6 +394,25 @@ next:
     lda line_dstlin+1
     adc #0
     sta line_dstlin+1
+
+    ; Abort if at last page before mem_top
+    clc
+    lda index_dst
+    adc line_code
+    tax
+    lda line_code+1
+    adc #0
+    cmp mem_top+1
+    bcc loop
+    bne mem_full
+    cpx mem_top
+    bcc loop
+mem_full:
+    lda #RESPONSE_BASIC_RAM_FULL
+    sec
+    jsr response_set
+    sec
+    rts
 
 loop:
     ; Get next char from file buffer

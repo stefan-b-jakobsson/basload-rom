@@ -42,6 +42,7 @@ RESPONSE_INVALID_CONTROLCODE    = 12
 RESPONSE_INVALID_SYMFILE        = 13
 RESPONSE_SYMFILE_IO_ERR         = 14
 RESPONSE_NO_FILENAME            = 15
+RESPONSE_BASIC_RAM_FULL         = 16
 
 ; Response messages
 msg_ok: .byt "success", 0
@@ -60,6 +61,7 @@ msg_invalid_controlcode: .byt "invalid control code in ",0
 msg_invalid_symfile: .byt "symfile not allowed in ", 0
 msg_symfile_io_err: .byt "couldn not open symfile in ", 0
 msg_no_filename: .byt "filename not specified ", 0
+msg_basic_ram_full: .byt "basic ram full", 0
 
 ; Response message pointers
 msg_pointers:
@@ -78,6 +80,8 @@ msg_pointers:
     .word msg_invalid_controlcode
     .word msg_invalid_symfile
     .word msg_symfile_io_err
+    .word msg_symfile_io_err
+    .word msg_basic_ram_full
 
 ;******************************************************************************
 ;Function name: response_set
