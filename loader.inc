@@ -115,13 +115,12 @@ pass2_loop:
 
 err2a:
     jsr file_set_status_as_response
-    bra exit
+    bra eof2
 
 err2b:
     clc
     lda #RESPONSE_LINE_TOO_LONG
     jsr response_set
-    bra exit
 
 eof2:
     ;Set BASIC pointers

@@ -72,10 +72,7 @@ LINE_BACKSLASH = 18
     bridge_setaddr KERNAL_MEMTOP
     sec
     bridge_call
-    cpy #0
-    bne :+
-    dex
-:   dey
+    dey
     stx mem_top
     sty mem_top+1
 
