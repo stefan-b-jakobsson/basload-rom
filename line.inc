@@ -566,6 +566,7 @@ ishex:
     stx state
     ldx #1
     stx dp_count
+    stz e_count
     jmp copy
 
     ; Decimal number - Alternative 2, starting with a number 0..9
@@ -575,6 +576,8 @@ ishex:
     bcs :+
     ldx #LINE_DECNUM
     stx state
+    stz dp_count
+    stz e_count
     jmp copy
 
     ; Symbol - A BASIC command, a label or a variable, starting with chars A..Z
@@ -701,6 +704,18 @@ decnum:
 
 :   jmp copy
 
+    ; Scientific number (E)?
+:   cmp #'e'
+    beq :+
+    cmp #'E'
+    bne :++
+
+:   inc e_count
+    ldx e_count
+    cpx #2
+    bcc :--- ; First "E", copy to output
+    bra :++ ; More than one "E", clear state and treat as start of new element
+    
     ; 0..9?
 :   cmp #'0'
     bcc :+
@@ -1028,6 +1043,7 @@ jump_table:
     index_src: .res 1
     symbol_start: .res 1    
     dp_count: .res 1
+    e_count: .res 1
     index_dst: .res 1
     last_token: .res 2
     quotes_count: .res 1
