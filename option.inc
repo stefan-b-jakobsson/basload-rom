@@ -47,6 +47,7 @@
 ;                   0a: #IFDEF
 ;                   0b: #IFNDEF
 ;                   0c: #ENDIF
+;                   0d: #TOKEN
 ;                   fa:          endif without if
 ;                   fb:          Too many nested if statements
 ;                   fc:          Duplicate symbol
@@ -107,8 +108,11 @@ get_option:
     bne :+
     jmp ifndef
 :   cmp #12
-    bne unknown
+    bne :+
     jmp endif
+:   cmp #13
+    bne unknown
+    jmp token
 
 unknown:
     lda #0
@@ -351,6 +355,7 @@ define_new:
     jsr symbol_add
     cmp #0
     beq :+
+    jmp invalid
 :   lda option_index
     rts
 
@@ -400,9 +405,10 @@ ifdef:
 :   ldx index1
     jsr option_get_string
     cmp #0
-    beq invalid ; Zero length string
+    bne :+
+    jmp invalid ; Zero length string
     
-    jsr option_translate_strptr
+:   jsr option_translate_strptr
 
     inc option_if_level
 
@@ -455,6 +461,35 @@ endif:
 :   rol option_if_flags+1
     rol option_if_flags
     dec option_if_level
+    lda option_index
+    rts
+
+token:
+    ; Get symbol name
+    ldx index1
+    jsr option_get_string
+    cmp #0
+    bne :+
+    jmp invalid ; Symbol name missing
+
+:   jsr option_translate_strptr
+    stx index1
+    sty index2
+
+    jsr define_val
+    lda token_next_id+1
+    beq :+
+    pha
+    lda token_next_id
+    sta token_next_id+1
+    pla
+    sta token_next_id
+
+:   ldx index1
+    ldy index2
+    lda #SYMBOLTYPE_TOKEN
+    jsr symbol_add
+    bcs invalid
     lda option_index
     rts
 
@@ -551,6 +586,7 @@ options_tbl:
     .byt "ifdef", 0
     .byt "ifndef", 0
     .byt "endif", 0
+    .byt "token", 0
     .byt 0
 
 .segment "VARS"
