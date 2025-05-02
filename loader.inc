@@ -47,6 +47,7 @@
     jsr line_init
     jsr file_init
     jsr symfile_init
+    jsr option_init
 
     ldx #<file_main_name
     ldy #>file_main_name
@@ -92,6 +93,7 @@ eof1:
 
 :   jsr line_init
     jsr file_init
+    jsr option_init
     ldx #<file_main_name
     ldy #>file_main_name
     lda file_main_len

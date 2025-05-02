@@ -149,7 +149,8 @@ eol:
 switch_state:
     ldy state
     cpy #LINE_SYMBOL
-    beq symbol
+    bne default
+    jmp symbol
 
 default:
     ; Whitespace - Ignored outside strings and REM statements
@@ -163,9 +164,9 @@ default:
 
     ; Option?
 :   cmp #35
-    bne symstrt
+    bne ifoption
     ldx index_dst
-    bne symstrt
+    bne ifoption
 
     ldx index_src
     inx
@@ -198,9 +199,40 @@ default:
     bne :+
     sec
     rts
-    
+
+:   cmp #$fc
+    bne :+
+    clc
+    lda #RESPONSE_DUPLICATE_SYMBOL
+    jsr response_set
+    sec
+    rts
+
+:   cmp #$fb
+    bne :+
+    clc
+    lda #RESPONSE_TOO_MANY_NESTED_IFS
+    jsr response_set
+    sec
+    rts
+
+:   cmp #$fa
+    bne :+
+    clc
+    lda #RESPONSE_ENDIF_WITHOUT_IF
+    jsr response_set
+    sec
+    rts
+
 :   jmp eol
-    
+
+ifoption:
+    ldy option_if_level
+    beq symstrt ; Not within #IF..#ENDIF, continue
+    ldy option_if_flags
+    bmi symstrt ; Within #IF..#ENDIF, continue if bit 7 is true (1)
+    jmp eol ; Else ignore line
+
     ; Symbol start?
 symstrt:   
     cmp #'a'
@@ -502,18 +534,11 @@ default:
     bne :++
 :   jmp next
 
-    ; String
-:   cmp #34 ; Double quote
-    bne :+
-    ldx #LINE_STRING
-    stx state
-    jmp copy
-
     ; Option - Starts with the # sign, must be at beginning of line
 :   cmp #35 ; Hash sign
-    bne ishex
+    bne ifoption
     ldx index_dst
-    bne ishex
+    bne ifoption
     
     ldx index_src
     inx
@@ -542,7 +567,46 @@ default:
     sec
     rts
 
+:   cmp #$fc
+    bne :+
+    clc
+    lda #RESPONSE_DUPLICATE_SYMBOL
+    jsr response_set
+    sec
+    rts
+
+:   cmp #$fb
+    bne :+
+    clc
+    lda #RESPONSE_TOO_MANY_NESTED_IFS
+    jsr response_set
+    sec
+    rts
+
+:   cmp #$fa
+    bne :+
+    clc
+    lda #RESPONSE_ENDIF_WITHOUT_IF
+    jsr response_set
+    sec
+    rts
+
 :   jmp eol
+
+ifoption:
+    ldy option_if_level
+    beq isstr ; Not within #IF..#ENDIF, continue
+    ldy option_if_flags
+    bmi isstr ; Within #IF..#ENDIF, continue if bit 7 is true (1)
+    jmp eol ; Else ignore line
+
+    ; String
+isstr:   
+    cmp #34 ; Double quote
+    bne ishex
+    ldx #LINE_STRING
+    stx state
+    jmp copy
 
     ; Hexadecimal number - Starts with a $ sign
 ishex:
@@ -790,32 +854,43 @@ symbol_found:
 :   plp
     pla
     bcs newvar
-    cmp #1
+    cmp #SYMBOLTYPE_VARIABLE
     bne :+
     jmp insvar
-:   cmp #2
+:   cmp #SYMBOLTYPE_TOKEN
     bne :+ 
     jmp instoken
+:   cmp #SYMBOLTYPE_LITERAL_PASS2
+    beq symbol_insert_value
+    cmp #SYMBOLTYPE_LITERAL_PASS1
+    bne :+
+    
+    clc
+    lda #RESPONSE_SYMBOL_NOT_IN_SCOPE
+    jsr response_set
+    sec
+    rts
 
     ; It's a label, insert its line number, if not at start of line
 :   lda index_dst
     bne :+
     inc index_src
-    bra :++++
+    stz state
+    jmp next
 
 :   lda last_token
     cmp #$8d ; Gosub
-    beq :+
+    beq symbol_insert_value
     cmp #$89 ; Goto
-    beq :+
+    beq symbol_insert_value
     cmp #$9b ; List
-    beq :+
+    beq symbol_insert_value
     cmp #$8c ; Restore
-    beq :+
+    beq symbol_insert_value
     cmp #$a7 ; Then
-    beq :+
+    beq symbol_insert_value
     cmp #$a4 ; To
-    beq :+
+    beq symbol_insert_value
     
     clc
     lda #RESPONSE_LABEL_NOT_EXPECTED
@@ -823,7 +898,8 @@ symbol_found:
     sec
     rts
 
-:   lda #0
+symbol_insert_value:
+    lda #0
     jsr util_bin_to_bcd
     lda #0
     jsr util_bcd_to_str

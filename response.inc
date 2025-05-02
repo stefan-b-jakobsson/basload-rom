@@ -43,6 +43,9 @@ RESPONSE_INVALID_SYMFILE        = 13
 RESPONSE_SYMFILE_IO_ERR         = 14
 RESPONSE_NO_FILENAME            = 15
 RESPONSE_BASIC_RAM_FULL         = 16
+RESPONSE_SYMBOL_NOT_IN_SCOPE    = 17
+RESPONSE_TOO_MANY_NESTED_IFS    = 18
+RESPONSE_ENDIF_WITHOUT_IF       = 19
 
 ; Response messages
 msg_ok: .byt "success", 0
@@ -62,6 +65,9 @@ msg_invalid_symfile: .byt "symfile not allowed in ", 0
 msg_symfile_io_err: .byt "couldn not open symfile in ", 0
 msg_no_filename: .byt "filename not specified ", 0
 msg_basic_ram_full: .byt "basic ram full", 0
+msg_symbol_not_in_scope: .byt "symbol not in scope in ", 0
+msg_too_many_nested_ifs: .byt "too many nested ifs in ", 0
+msg_endif_without_if: .byt "endif without if in ", 0
 
 ; Response message pointers
 msg_pointers:
@@ -82,6 +88,9 @@ msg_pointers:
     .word msg_symfile_io_err
     .word msg_symfile_io_err
     .word msg_basic_ram_full
+    .word msg_symbol_not_in_scope
+    .word msg_too_many_nested_ifs
+    .word msg_endif_without_if
 
 ;******************************************************************************
 ;Function name: response_set

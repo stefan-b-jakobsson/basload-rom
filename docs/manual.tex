@@ -236,6 +236,11 @@
             \item \#CONTROLCODES
             \item \#SYMFILE
             \item \#SAVEAS
+            \item \#MAXCOLUMN
+            \item \#DEFINE
+            \item \#IFDEF
+            \item \#IFNDEF
+            \item \#ENDIF
         \end{itemize}
 
         The argument is separated from the option name by one or more whitespace characters. It
@@ -367,15 +372,79 @@
         This option autosaves the tokenized program to the
         specified file name. Preprend the file name by
         @: if you always want to overwrite an existing file.
+
+    \subsection{Option: \#MAXCOLUMN int8}
+    
+        The MAXCOLUMN options sets the maximum line width
+        of the source file. If exceeded, BASLOAD stops with an
+        error.
+
+        The default value is 250 characters.
+
+    \subsection{Option: \#DEFINE symbolname int16 }
+    
+        This option defines a symbol name that is translated to
+        a 16 bit integer value.
+
+        It is possible to redefine symbol multiple
+        times.
+
+        It is, however, not possible to use the same symbol name as is also
+        used for BASIC commands, variables or labels.
+
+        The symbol name can be used in the BASIC code, and will
+        then be replaced by the literal value set in the definition.
+
+        Defined literals are also used in conditional translation of the source code, which is
+        described in more depth below.
+
+        Example:
+
+        \begin{verbatim}
+    #DEFINE MYPARAM 1
+    PRINT MYPARAM: REM TRANSLATES TO PRINT 1
+        \end{verbatim}
+    
+    \subsection{Options for conditional translation of the source code}
+        
+        BASLOAD supports conditional translation of the source code using
+        the \#IFDEF, \#IFNDEF and \#ENDIF options.
+
+        IFDEF checks if the specified defined literal exists. Other symbols,
+        such as BASIC commands, variables and labels are ignored by IFDEF.
+        If the defined literal does not exist, all subsequent code in the source
+        file is ignored until finding the corresponding ENDIF.
+
+        IFNDEF works in the same way, but suppresses subsequent code if the
+        the defined literal exists ("if not defined").
+
+        It is possible to nest IFDEFs and IFNDEFs. The maximum level of nested
+        statements is 16.
+
+        Example:
+
+        \begin{verbatim}
+    #DEFINE MYPARAM 1
+    #IFDEF MYPARAM
+        PRINT "HELLO": REM INCLUDED IN TRANSPILED CODE
+    #ENDIF
+    #IFNDEF MYPARAM
+        PRINT "WORLD": REM SUPPRESSED, NOT INCLUDED IN TRANSPILED CODE
+    #ENDIF
+        \end{verbatim}
     
 \section{Running BASLOAD}
 
     \subsection{Planned Interface}
 
-        There are two ways planned to start BASLOAD, neither of which is yet
-        part of the official ROM.
+        There are two ways to start BASLOAD.
 
-        The first method is to use a dedicated BASIC command, like BASLOAD "filename".
+        The first method is to use the BASLOAD command available in X16 BASIC. The
+        name of the source file is specified within double quotes, for example:
+
+        \begin{verbatim}
+    BASLOAD "MYPROGRAM.BAS"
+        \end{verbatim}
 
         The second method is a keyboard shortcut in X16 Edit, the text editor.
 

@@ -24,6 +24,11 @@
 ;OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ;OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+.proc option_init
+    stz option_if_level
+    rts
+.endproc
+
 ;******************************************************************************
 ;Function name: option_parse
 ;Purpose......: Parses a line of code where there is an option
@@ -34,7 +39,17 @@
 ;                   02: #REM     Option turns on or off output of REMs
 ;                   03: #INCLUDE
 ;                   04: #AUTONUM
-;                   05; #SYMFILE 
+;                   05: #CONTROLCODES
+;                   06: #SYMFILE
+;                   07: #SAVEAS
+;                   08: #MAXCOLUMN
+;                   09: #DEFINE
+;                   0a: #IFDEF
+;                   0b: #IFNDEF
+;                   0c: #ENDIF
+;                   fa:          endif without if
+;                   fb:          Too many nested if statements
+;                   fc:          Duplicate symbol
 ;                   fd:          Symfile error
 ;                   fe:          Invalid param
 ;                   ff:          File error
@@ -77,8 +92,23 @@ get_option:
     bne :+
     jmp symfile
 :   cmp #7
-    bne unknown
+    bne :+
     jmp saveas
+:   cmp #8
+    bne :+
+    jmp maxcolumn
+:   cmp #9
+    bne :+
+    jmp define
+:   cmp #10
+    bne :+
+    jmp ifdef
+:   cmp #11
+    bne :+
+    jmp ifndef
+:   cmp #12
+    bne unknown
+    jmp endif
 
 unknown:
     lda #0
@@ -266,6 +296,168 @@ saveas:
     sta RAM_SEL
     rts
 
+maxcolumn:
+    ldx index1
+    jsr option_get_int
+    bcs macrocolumn_invalid
+    cmp #0
+    bne macrocolumn_invalid
+    cpy #0
+    bne macrocolumn_invalid
+    stx file_maxcol
+    lda option_index
+    rts
+macrocolumn_invalid:
+    jmp invalid
+
+define:
+    ; Abort if hidden #IFDEF or #IFNDEF block
+    lda option_if_level
+    beq :+
+    lda option_if_flags
+    bmi :+
+    lda option_index
+    rts
+
+    ; Get symbol name
+:   ldx index1
+    jsr option_get_string
+    cmp #0
+    bne :+
+    jmp invalid ; Symbol name missing
+
+:   ; Translate string pointer to buffer index
+    jsr option_translate_strptr
+    stx index1
+    sty index2
+
+    ; Check if symbol exists
+    jsr symbol_find
+    bcs define_new
+    cmp #SYMBOLTYPE_LITERAL_PASS1
+    beq redefine
+    cmp #SYMBOLTYPE_LITERAL_PASS2
+    beq redefine
+    lda #$fc ; Symbol exists, and can't be redefined
+    rts
+
+define_new:
+    jsr define_val
+    ldx index1
+    ldy index2
+    clc
+    lda line_pass
+    adc #SYMBOLTYPE_LITERAL_PASS1-1
+    jsr symbol_add
+    cmp #0
+    beq :+
+:   lda option_index
+    rts
+
+redefine:
+    jsr define_val
+    ldx index1
+    ldy index2
+    clc
+    lda line_pass
+    adc #SYMBOLTYPE_LITERAL_PASS1-1
+    jsr symbol_update
+    lda option_index
+    rts
+
+define_val:
+    ldx index2
+    inx
+    jsr option_get_int
+    bcs define_val_invalid
+    cmp #0
+    bne define_val_invalid ; Value too large
+    stx token_next_id
+    sty token_next_id+1
+    rts
+
+define_val_invalid:
+    pla
+    pla
+    jmp invalid
+
+ifdef:
+    ; Check if parent #ifdef is false
+    lda option_if_level
+    beq :+
+    lda option_if_flags
+    bmi :+
+    jmp ifdef_notfound
+
+:   ; Check if if level too high
+    lda option_if_level
+    cmp #16
+    bcc :+
+    lda #$fb
+    rts
+
+    ; Get string
+:   ldx index1
+    jsr option_get_string
+    cmp #0
+    beq invalid ; Zero length string
+    
+    jsr option_translate_strptr
+
+    inc option_if_level
+
+    jsr symbol_find
+    bcs ifdef_notfound
+    sec
+    sbc #SYMBOLTYPE_LITERAL_PASS1-1
+    cmp line_pass
+    bne ifdef_notfound
+
+ifdef_found:
+    sec
+    ror option_if_flags
+    ror option_if_flags+1
+    lda option_index
+    rts
+
+ifdef_notfound:
+    clc
+    ror option_if_flags
+    ror option_if_flags+1
+    lda option_index
+    rts
+
+ifndef:
+    ; Check if parent #ifdef is false
+    lda option_if_level
+    beq :+
+    lda option_if_flags
+    bmi :+
+    jmp ifdef_notfound
+
+    ; Run #ifdef, and reverse result
+:   jsr ifdef
+    cmp #11 ; no errors
+    beq :+
+    rts
+:   lda option_if_flags
+    eor #$80 ; reverse flag
+    sta option_if_flags
+    lda option_index
+    rts
+
+endif:
+    lda option_if_level
+    bne :+
+    lda #$fa
+    rts
+
+:   rol option_if_flags+1
+    rol option_if_flags
+    dec option_if_level
+    lda option_index
+    rts
+
 invalid:
     lda #$fe
     rts
@@ -354,6 +546,11 @@ options_tbl:
     .byt "controlcodes", 0
     .byt "symfile", 0
     .byt "saveas", 0
+    .byt "maxcolumn", 0
+    .byt "define", 0
+    .byt "ifdef", 0
+    .byt "ifndef", 0
+    .byt "endif", 0
     .byt 0
 
 .segment "VARS"
@@ -496,10 +693,46 @@ eos:
     index1: .res 1
     quotes: .res 1
     len: .res 1
+.CODE
+.endproc
+
+;******************************************************************************
+;Function name: option_translate_strptr
+;Purpose......: Translates string pointer to buffer index
+;Input........: X/Y = Pointer to string within file_buf
+;               A = String length
+;Output.......: X = String start index
+;               Y = String end indexs
+;Error........: Nothing
+.proc option_translate_strptr
+    ; Store str length on stack
+    pha
+
+    ; Calculate start index
+    sec
+    txa
+    sbc #<file_buf
+    tax
+
+    ; Calculate end index
+    clc
+    pla ; Get string length from stack
+    stx tmp
+    adc tmp
+    tay
+    dey
+
+    ; Return
+    rts
+.segment "VARS"
+    tmp: .res 1
+.CODE
 .endproc
 
 .segment "VARS"
     saveas_len: .res 1
+    option_if_level: .res 1
+    option_if_flags: .res 2
 
 .segment "RAM1"
     saveas_name: .res 256

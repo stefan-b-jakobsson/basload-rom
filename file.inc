@@ -38,6 +38,7 @@
     file_srclin_L: .res 10      ;Source line counter bits 0..7 for file numbers 2-11
     file_srclin_M: .res 10      ;Source line counter bits 8..15 for file numbers 2-11
     file_srclin_H: .res 10      ;Source line counter bits 16..23 for file numbers 2-11
+    file_maxcol: .res 1         ;Max column count
 
 .segment "RAM1"
     file_name_tbl: .res 640    ;Array of open files names (first 63 characters of each file name, NULL terminated)
@@ -51,6 +52,10 @@
 ;Output.......: Nothing
 ;Errors.......: Nothing
 .proc file_init
+    ; Set max column count
+    lda #250
+    sta file_maxcol
+
     ; Set current file number = 1, i.e. one below the first file number we are using
     lda #1
     sta file_cur_num
@@ -280,7 +285,7 @@ loop:
 
     ;Check line length
 :   ldx index
-    cpx #250
+    cpx file_maxcol
     bcc :+
 
     lda #3

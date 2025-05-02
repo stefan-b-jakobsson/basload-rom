@@ -81,6 +81,8 @@ SYMBOLTYPE_VARIABLE     = 1
 SYMBOLTYPE_TOKEN        = 2
 SYMBOLTYPE_RESERVED_VAR = 3
 SYMBOLTYPE_CONTROL_CHAR = 4
+SYMBOLTYPE_LITERAL_PASS1 = 5
+SYMBOLTYPE_LITERAL_PASS2 = 6
 
 ; Variables
 .ZEROPAGE
@@ -190,6 +192,8 @@ PRINT_TOKEN:
 ;                   2: BASIC command/token
 ;                   3: Reserved variable, stored as type 1=variable
 ;                   4: PETSCII control char
+;                   5: Defined literal (pass 1)
+;                   6: Defined literal (pass 2)
 ;               C   1: Skip duplicate check
 ;Output.......: X/Y Symbol value (low/high byte)
 ;               A   0: OK
@@ -537,7 +541,9 @@ exit:
 ;                   2: BASIC token
 ;                   3: Reserved variable, stored as type 1=variable
 ;                   4: PETSCII control char
-;Error........: C=1 if label not found
+;                   5: Defined literal (pass 1)
+;                   6: Defined literal (pass 2)
+;Error........: C=1 if symbol not found
 .proc symbol_find
     ; Store input params
     stx index1
@@ -640,6 +646,37 @@ not_found:
     len: .res 1
 .CODE
 
+.endproc
+
+;******************************************************************************
+;Function name: symbol_update
+;Purpose......: Searches symbol table for a given symbol name
+;Input........: X   Index in file_buf where symbol starts
+;               Y   Index in file_buf where symbol ends
+;               A   New symbol type
+;               token_next_id new value
+.proc symbol_update
+    pha
+    jsr symbol_find
+    pla
+    bcs not_found
+
+found:
+    ldy #SYMBOL_TYPE
+    sta (symbol_pointer),y
+    ldy #SYMBOL_VALUE
+    lda token_next_id
+    sta (symbol_pointer),y
+    iny
+    lda token_next_id+1
+    sta (symbol_pointer),y
+
+    clc
+    rts
+
+not_found:
+    sec
+    rts
 .endproc
 
 SYMBOLTYPE_RESERVED_VARs:
