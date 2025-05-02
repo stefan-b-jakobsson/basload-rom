@@ -37,12 +37,12 @@
     The main benefits of BASLOAD are:
 
     \begin{itemize}
-        \item Source code may be edited in any text editor
+        \item Source code may be edited in any text editor.
         \item Line numbers are not used in the source code; named labels are 
-              decleared as targets for GOTOs and GOSUBs
+              decleared as targets for GOTOs and GOSUBs.
         \item Long variable names are supported, while only the first two 
               characters of a variable name are significant in the built-in 
-              BASIC
+              BASIC.
     \end{itemize}
     
     This manual only describes the ROM based version of BASLOAD.
@@ -53,7 +53,7 @@
 
 \section{Hello World Example}
 
-    Lets begin with a simple Hello world example in BASLOAD formatted
+    Let's begin with a simple Hello world example in BASLOAD formatted
     source code. Open your text editor, type in the code below, and save it to
     the file "HELLO.BAS" on the SD card.
 
@@ -85,9 +85,9 @@
     long as the following requirements are met:
 
     \begin{itemize}
-        \item The source code must be plain ASCII or PETSCII encoded text
-        \item Line breaks may be encoded with CR, LF or CRLF
-        \item A line may not be more than 250 characters long
+        \item The source code must be plain ASCII or PETSCII encoded text.
+        \item Line breaks may be encoded with CR, LF or CRLF.
+        \item A line may not be more than 250 characters long.
     \end{itemize}
 
 \section{BASIC Syntax}
@@ -108,13 +108,13 @@
         BASLOAD source code and the built-in BASIC:
 
         \begin{itemize}
-            \item Line numbers are not used in BASLOAD source code
+            \item Line numbers are not used in BASLOAD source code.
             \item Labels are decleared as targets for GOTOs, GOSUBs and
-                  other commands that normally take a line number
+                  other commands that normally take a line number.
             \item Variable names have up to 64 significant characters, compared to two
-                  in the built-in BASIC
+                  in the built-in BASIC.
             \item Some whitespace is required to separate identifiers, 
-                  \textit{i.e.} commands, labels, and variables, from each other
+                  \textit{i.e.} commands, labels, and variables, from each other.
                   
         \end{itemize}
     
@@ -128,10 +128,10 @@
         Subsequent characters may be any of:
 
         \begin{itemize}
-            \item A letter A--Z
-            \item A digit 0--9 
-            \item An underscore 
-            \item A decimal point (.)
+            \item A letter A--Z.
+            \item A digit 0--9. 
+            \item An underscore. 
+            \item A decimal point (.).
         \end{itemize}
 
         Identifiers are not case-sensitive, and may be at most 64 characters long.
@@ -214,16 +214,16 @@
 
     \subsection{General}
 
-        BASLOAD lets you put options in the source code that affect the output. In some
-        programming languages they are called directives.
+        BASLOAD lets you put options in the source code that affect the output, similar to
+        directives in C/C++.
 
         An option must be placed at the beginning of a line, but there may be
         whitespace before it.
 
-        Options have the following syntax:
+        Options have the following general syntax:
 
         \begin{verbatim}
-    #<NAME> <ARGUMENT>
+    #<NAME> <ARGUMENT 1> ... <ARGUMENT n>
         \end{verbatim}
 
         The following options are supported:
@@ -241,10 +241,11 @@
             \item \#IFDEF
             \item \#IFNDEF
             \item \#ENDIF
+            \item \#TOKEN
         \end{itemize}
 
-        The argument is separated from the option name by one or more whitespace characters. It
-        may be either an integer number or a string. A string may optionally be enclosed in
+        Arguments are separated from each other and the option name by one or more whitespace characters.
+        Arguments may be either integer numbers or strings. A string may optionally be enclosed in
         duoble quotes, which makes it possible for it to contain whitespace characters.
 
     \subsection{Option: \#\# Comment}
@@ -373,7 +374,7 @@
         specified file name. Preprend the file name by
         @: if you always want to overwrite an existing file.
 
-    \subsection{Option: \#MAXCOLUMN int8}
+    \subsection{Option: \#MAXCOLUMN \textless int8\textgreater}
     
         The MAXCOLUMN options sets the maximum line width
         of the source file. If exceeded, BASLOAD stops with an
@@ -381,22 +382,20 @@
 
         The default value is 250 characters.
 
-    \subsection{Option: \#DEFINE symbolname int16 }
+    \subsection{Option: \#DEFINE \textless identifier\textgreater \  \textless int16\textgreater }
     
-        This option defines a symbol name that is translated to
-        a 16 bit integer value.
-
-        It is possible to redefine symbol multiple
-        times.
-
+        This option defines a constant 16 bit value. 
+        
+        It is possible to redefine the constant multiple times in the source code.
         It is, however, not possible to use the same symbol name as is also
         used for BASIC commands, variables or labels.
 
-        The symbol name can be used in the BASIC code, and will
-        then be replaced by the literal value set in the definition.
+        After it has been defined, the name of a constant can be used in
+        the source code. It is replaced by the integer value in the resulting
+        runnable code.
 
-        Defined literals are also used in conditional translation of the source code, which is
-        described in more depth below.
+        Defining constants is also useful for conditional translation of the
+        source code, which is discussed more in depth below.
 
         Example:
 
@@ -405,20 +404,20 @@
     PRINT MYPARAM: REM TRANSLATES TO PRINT 1
         \end{verbatim}
     
-    \subsection{Options for conditional translation of the source code}
+    \subsection{Conditional translation of source code}
         
         BASLOAD supports conditional translation of the source code using
         the \#IFDEF, \#IFNDEF and \#ENDIF options.
 
-        IFDEF checks if the specified defined literal exists. Other symbols,
+        IFDEF checks if the specified defined constant exists. Other identifiers,
         such as BASIC commands, variables and labels are ignored by IFDEF.
-        If the defined literal does not exist, all subsequent code in the source
-        file is ignored until finding the corresponding ENDIF.
+        If the defined constant does not exist, all subsequent code in the source
+        file is ignored until the corresponding ENDIF.
 
-        IFNDEF works in the same way, but suppresses subsequent code if the
+        IFNDEF works in the same way as IFDEF, but suppresses code if the
         the defined literal exists ("if not defined").
 
-        It is possible to nest IFDEFs and IFNDEFs. The maximum level of nested
+        It is possible to nest IFDEF and IFNDEF. The maximum level of nested
         statements is 16.
 
         Example:
@@ -433,9 +432,21 @@
     #ENDIF
         \end{verbatim}
     
+    \subsection{Option: \#TOKEN \textless identifier\textgreater \  \textless int16\textgreater }
+        The TOKEN option inserts a command or operator into the symbol table. It can be used
+        to create an alias of BASIC commands or to insert any raw bytes into the resulting
+        code.
+
+        Example that creates a token for the PI character:
+
+        \begin{verbatim}
+    #TOKEN PI 255
+    PRINT PI
+         \end{verbatim}
+
 \section{Running BASLOAD}
 
-    \subsection{Planned Interface}
+    \subsection{From BASIC}
 
         There are two ways to start BASLOAD.
 
@@ -446,7 +457,7 @@
     BASLOAD "MYPROGRAM.BAS"
         \end{verbatim}
 
-        The second method is a keyboard shortcut in X16 Edit, the text editor.
+        The second method is a keyboard shortcut in X16 Edit, the built-in text editor.
 
     \subsection{API}
 
@@ -495,6 +506,11 @@
             \item 12 = Invalid control code
             \item 13 = Invalid symbol file
             \item 14 = Symbol file I/O error
+            \item 15 = File name not specified
+            \item 16 = BASIC RAM full
+            \item 17 = Symbol not in scope
+            \item 18 = Too many nested IFs
+            \item 19 = ENDIF without IF
         \end{itemize}
 
 \appendix
@@ -582,9 +598,3 @@
     \end{longtable}
 
 \end{document}
-
-Pihjalalinna
-Terveystalo
-Mehiläinen
-Lääkärikeskus Aava
-Pohjola Vakuutus 49-10622-6
