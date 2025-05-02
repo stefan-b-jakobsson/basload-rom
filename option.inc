@@ -465,8 +465,14 @@ endif:
     rts
 
 token:
+    lda line_pass
+    cmp #1
+    beq :+
+    lda option_index
+    rts
+
     ; Get symbol name
-    ldx index1
+:   ldx index1
     jsr option_get_string
     cmp #0
     bne :+
@@ -488,9 +494,13 @@ token:
 :   ldx index1
     ldy index2
     lda #SYMBOLTYPE_TOKEN
+    clc
     jsr symbol_add
-    bcs invalid
+    cmp #0
+    bne :+
     lda option_index
+    rts
+:   lda #$fc
     rts
 
 invalid:
