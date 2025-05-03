@@ -1,5 +1,5 @@
 \documentclass{article}
-\title{BASLOAD-ROM user manual}
+\title{BASLOAD user manual}
 \date{\today}
 
 \setlength{\parindent}{0pt}
@@ -45,7 +45,8 @@
               BASIC.
     \end{itemize}
     
-    This manual only describes the ROM based version of BASLOAD.
+    This manual describes the ROM based version of BASLOAD. The original RAM
+    based version of BASLOAD is depreciated.
 
     The Commander X16 was devised by David Murray a.k.a. the 
     8-Bit Guy. For more information on the platform, go to 
@@ -120,7 +121,7 @@
     
     \subsection{Identifiers}
 
-        BASIC commands, labels and variables are commonly referred to as "identifiers" in this
+        BASIC commands, labels, variables and defined constants are commonly referred to as "identifiers" in this
         manual.
 
         Identifiers start with a letter, any of A--Z.
@@ -131,7 +132,7 @@
             \item A letter A--Z.
             \item A digit 0--9. 
             \item An underscore. 
-            \item A decimal point (.).
+            \item A period (.).
         \end{itemize}
 
         Identifiers are not case-sensitive, and may be at most 64 characters long.
@@ -244,9 +245,10 @@
             \item \#TOKEN
         \end{itemize}
 
-        Arguments are separated from each other and the option name by one or more whitespace characters.
-        Arguments may be either integer numbers or strings. A string may optionally be enclosed in
-        duoble quotes, which makes it possible for it to contain whitespace characters.
+        Arguments are separated by one or more whitespace characters.
+        Arguments may be integer values in decimal format, identifier names or strings. 
+        A string may optionally be enclosed in duoble quotes, which makes it possible 
+        for it to contain whitespace characters.
 
     \subsection{Option: \#\# Comment}
 
@@ -291,7 +293,7 @@
     #INCLUDE "FUNC.BAS"
         \end{verbatim}    
 
-    \subsection{Option: \#AUTONUM 0 $|$ 1}
+    \subsection{Option: \#AUTONUM \textless int8 \textgreater }
 
         The autonum option makes it possible to set how many
         steps the line number of the resulting code is
@@ -368,7 +370,7 @@
     #SYMFILE "@:MYPRG.SYM"
         \end{verbatim}
 
-    \subsection{Option: \#SAVEAS "@:MYPROGRAM.PRG"}
+    \subsection{Option: \#SAVEAS "@:filename"}
         
         This option autosaves the tokenized program to the
         specified file name. Preprend the file name by
@@ -382,16 +384,16 @@
 
         The default value is 250 characters.
 
-    \subsection{Option: \#DEFINE \textless identifier\textgreater \  \textless int16\textgreater }
+    \subsection{Option: \#DEFINE \textless identifier name\textgreater \  \textless int16\textgreater }
     
-        This option defines a constant 16 bit value. 
+        This option defines a 16 bit constant integer.
         
-        It is possible to redefine the constant multiple times in the source code.
-        It is, however, not possible to use the same symbol name as is also
+        It is possible to redefine the constant multiple times.
+        It is, however, not possible to use the same identifier name as is also
         used for BASIC commands, variables or labels.
 
         After it has been defined, the name of a constant can be used in
-        the source code. It is replaced by the integer value in the resulting
+        the source code. It is then replaced by its integer value in the resulting
         runnable code.
 
         Defining constants is also useful for conditional translation of the
@@ -404,20 +406,20 @@
     PRINT MYPARAM: REM TRANSLATES TO PRINT 1
         \end{verbatim}
     
-    \subsection{Conditional translation of source code}
+    \subsection{Conditional Translation of Source Code}
         
         BASLOAD supports conditional translation of the source code using
         the \#IFDEF, \#IFNDEF and \#ENDIF options.
 
         IFDEF checks if the specified defined constant exists. Other identifiers,
-        such as BASIC commands, variables and labels are ignored by IFDEF.
+        such as BASIC commands, variables and labels, are ignored by IFDEF.
         If the defined constant does not exist, all subsequent code in the source
-        file is ignored until the corresponding ENDIF.
+        file is ignored until the matching ENDIF statement.
 
-        IFNDEF works in the same way as IFDEF, but suppresses code if the
-        the defined literal exists ("if not defined").
+        IFNDEF works in the opposite way to IFDEF, including subsequent code if the
+        the defined constant is not defined.
 
-        It is possible to nest IFDEF and IFNDEF. The maximum level of nested
+        It is possible to nest IFDEF and IFNDEF statements. The maximum level of nested
         statements is 16.
 
         Example:
@@ -432,7 +434,7 @@
     #ENDIF
         \end{verbatim}
     
-    \subsection{Option: \#TOKEN \textless identifier\textgreater \  \textless int16\textgreater }
+    \subsection{Option: \#TOKEN \textless identifier name\textgreater \  \textless int16\textgreater }
         The TOKEN option inserts a command or operator into the symbol table. It can be used
         to create an alias of BASIC commands or to insert any raw bytes into the resulting
         code.
