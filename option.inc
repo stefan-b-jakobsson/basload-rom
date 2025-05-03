@@ -330,7 +330,9 @@ define:
     jmp invalid ; Symbol name missing
 
     ; Check if symbol exists
-:   jsr symbol_find
+:   stx index1
+    sty index2
+    jsr symbol_find
     bcs define_new
     cmp #SYMBOLTYPE_LITERAL_PASS1
     beq redefine
@@ -783,7 +785,7 @@ loop2:
     cmp #'z'+1
     bcc loop2
 
-invalid:
+invalid: 
     plx
     sec
     rts
