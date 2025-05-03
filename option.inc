@@ -325,18 +325,12 @@ define:
 
     ; Get symbol name
 :   ldx index1
-    jsr option_get_string
-    cmp #0
-    bne :+
+    jsr option_get_identifier
+    bcc :+
     jmp invalid ; Symbol name missing
 
-:   ; Translate string pointer to buffer index
-    jsr option_translate_strptr
-    stx index1
-    sty index2
-
     ; Check if symbol exists
-    jsr symbol_find
+:   jsr symbol_find
     bcs define_new
     cmp #SYMBOLTYPE_LITERAL_PASS1
     beq redefine
@@ -403,14 +397,11 @@ ifdef:
 
     ; Get string
 :   ldx index1
-    jsr option_get_string
-    cmp #0
-    bne :+
+    jsr option_get_identifier
+    bcc :+
     jmp invalid ; Zero length string
-    
-:   jsr option_translate_strptr
 
-    inc option_if_level
+:   inc option_if_level
 
     jsr symbol_find
     bcs ifdef_notfound
@@ -473,13 +464,11 @@ token:
 
     ; Get symbol name
 :   ldx index1
-    jsr option_get_string
-    cmp #0
-    bne :+
+    jsr option_get_identifier
+    bcc :+
     jmp invalid ; Symbol name missing
 
-:   jsr option_translate_strptr
-    stx index1
+:   stx index1
     sty index2
 
     jsr define_val
@@ -743,36 +732,69 @@ eos:
 .endproc
 
 ;******************************************************************************
-;Function name: option_translate_strptr
-;Purpose......: Translates string pointer to buffer index
-;Input........: X/Y = Pointer to string within file_buf
-;               A = String length
-;Output.......: X = String start index
-;               Y = String end indexs
-;Error........: Nothing
-.proc option_translate_strptr
-    ; Store str length on stack
-    pha
+;Function name: option_get_identifier
+;Purpose......: Returns a valid identifier name
+;Input........: X = Start index in file_buf
+;Output.......: X = Start index in file_buf
+;               Y = End index in file_buf
+;Error........: C = 1 if not valid identifier
+.proc option_get_identifier
+    phx
 
-    ; Calculate start index
+    ; Skip initial white space
+loop1:
+    lda file_buf,x
+    cmp #9 ; tab
+    beq loop1_next
+    cmp #32 ; blank space
+    beq loop1_next
+    cmp #160
+    beq loop1_next
+    cmp #'a'
+    bcc invalid
+    cmp #'z'+1
+    bcc found_start
+loop1_next:
+    inx
+    bra loop1
+
+found_start:
+    ; Replace X value on stack with current X value, i.e. actual start of the identifier
+    pla
+    phx
+
+    ; Check subsequent chars until finding a character not part of an identifier or EOL
+loop2:
+    inx
+    lda file_buf,x
+    beq valid ; EOL
+    cmp #9 ; tab
+    beq valid
+    cmp #32 ; blank space
+    beq valid
+    cmp #160
+    beq valid
+    cmp #95 ; underscore
+    beq loop2
+    cmp #46 ; period
+    beq loop2
+    cmp #'a'
+    bcc invalid
+    cmp #'z'+1
+    bcc loop2
+
+invalid:
+    plx
     sec
-    txa
-    sbc #<file_buf
-    tax
+    rts
 
-    ; Calculate end index
-    clc
-    pla ; Get string length from stack
-    stx tmp
-    adc tmp
+valid:
+    txa
     tay
     dey
-
-    ; Return
+    plx
+    clc
     rts
-.segment "VARS"
-    tmp: .res 1
-.CODE
 .endproc
 
 .segment "VARS"
