@@ -59,6 +59,8 @@
 ; name. If symbol names are 10 characters in avarage, the table fits
 ; about 3,800 symbols.
 
+.include "ascii_charmap.inc"
+
 ; Exports needed for unit testing
 .export symbol_init, symbol_add, symbol_find, symbol_buckets_bank, file_buf, line_dstlin, symbol_next_bank, symbol_pointer
 
@@ -126,7 +128,7 @@ SYMBOLTYPE_LITERAL_PASS2 = 6
     sta symbol_next_addr+1
 
     ; Set next available variable name to "A"
-    lda #'a'
+    lda #'A'
     sta symbol_next_var
     lda #0
     sta symbol_next_var+1
@@ -148,27 +150,27 @@ SYMBOLTYPE_LITERAL_PASS2 = 6
     jsr symbol_add
 
     ; Add reserved variables to the symbol table
-    lda #'s'
+    lda #'S'
     sta file_buf
-    lda #'t'
+    lda #'T'
     sta file_buf+1
     ldx #0
     ldy #1
     lda #SYMBOLTYPE_RESERVED_VAR
     jsr symbol_add
 
-    lda #'t'
+    lda #'T'
     sta file_buf
-    lda #'i'
+    lda #'I'
     sta file_buf+1
     ldx #0
     ldy #1
     lda #SYMBOLTYPE_RESERVED_VAR
     jsr symbol_add
     
-    lda #'d'
+    lda #'D'
     sta file_buf
-    lda #'a'
+    lda #'A'
     sta file_buf+1
     ldx #0
     ldy #1
@@ -410,7 +412,7 @@ inc_var:
     beq :++
     
     ; The current variable name ends with a 'Z' => The next variable is a single char
-    cmp #'z'+1
+    cmp #'Z'+1
     bne chk_var
 
     inc symbol_next_var
@@ -421,7 +423,7 @@ inc_var:
     sta symbol_next_var+1
     bra chk_var
 
-:   lda #'a'
+:   lda #'A'
     sta symbol_next_var+1
 
 chk_var:
@@ -680,16 +682,16 @@ not_found:
 .endproc
 
 SYMBOLTYPE_RESERVED_VARs:
-    .byt "da"
-    .byt "if"
-    .byt "fn"
-    .byt "go"
-    .byt "mx"
-    .byt "my"
-    .byt "mb"
-    .byt "on"
-    .byt "or"
-    .byt "st"
-    .byt "ti"
-    .byt "to"
+    .byt "DA"
+    .byt "IF"
+    .byt "FN"
+    .byt "GO"
+    .byt "MX"
+    .byt "MY"
+    .byt "MB"
+    .byt "ON"
+    .byt "OR"
+    .byt "ST"
+    .byt "TI"
+    .byt "TO"
 SYMBOLTYPE_RESERVED_VARs_end:

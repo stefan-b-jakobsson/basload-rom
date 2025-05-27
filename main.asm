@@ -49,6 +49,7 @@
 ;    - The caller may display the status message
 ;      returned by BASLOAD
 
+.include "ascii_charmap.inc"
 .include "common.inc"
 .include "appversion.inc"
 .include "bridge_macro.inc"

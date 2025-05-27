@@ -24,6 +24,8 @@
 ;OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ;OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+.include "ascii_charmap.inc"
+
 .ZEROPAGE
     token_ptr: .res 2
 
@@ -138,13 +140,13 @@ error:
     rts
 
 std_identifier:
-    .byt "en",$c4,"fo",$d2
+    .byt "EN",$c4,"FO",$d2
 
 ext_stmt_identifier:
-    .byt "mo", 'n' + $80, "do", 's' + $80
+    .byt "MO", 'N' + $80, "DO", 'S' + $80
 
 ext_func_identifier:
-    .byt "vpee", 'k' + $80
+    .byt "VPEE", 'K' + $80
 .endproc
 
 ;******************************************************************************

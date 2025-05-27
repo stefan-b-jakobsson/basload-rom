@@ -24,6 +24,8 @@
 ;OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ;OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+.include "ascii_charmap.inc"
+
 SYMFILE_NUMBER = 1
 
 .segment "VARS"
@@ -167,8 +169,8 @@ err:
     rts
 
 msg:
-    .byt .sprintf("basload %u.%u.%u symbol file", appversion_major, appversion_minor, appversion_patch)
-    .byt 10, 10, 10, 10, "labels", 10, "------", 0
+    .byt .sprintf("BASLOAD %u.%u.%u SYMBOL FILE", appversion_major, appversion_minor, appversion_patch)
+    .byt 10, 10, 10, 10, "LABELS", 10, "------", 0
 .endproc
 
 ;******************************************************************************
@@ -197,7 +199,7 @@ err:
     rts
 
 msg:
-    .byt 10,10,10,10, "variables", 10, "---------", 0
+    .byt 10,10,10,10, "VARIABLES", 10, "---------", 0
 .endproc
 
 ;******************************************************************************
@@ -432,7 +434,7 @@ err:
     rts
 
 file_lbl:
-    .byt 10,10,"file: ",0
+    .byt 10,10,"FILE: ",0
 .endproc
 
 ;******************************************************************************
