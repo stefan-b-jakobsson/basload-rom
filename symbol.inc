@@ -59,8 +59,6 @@
 ; name. If symbol names are 10 characters in avarage, the table fits
 ; about 3,800 symbols.
 
-.include "ascii_charmap.inc"
-
 ; Exports needed for unit testing
 .export symbol_init, symbol_add, symbol_find, symbol_buckets_bank, file_buf, line_dstlin, symbol_next_bank, symbol_pointer
 
@@ -252,7 +250,7 @@ PRINT_TOKEN:
     cmp #SYMBOLTYPE_LABEL
     bne :+
     lda symbol_next_var
-    cmp #'z'+1
+    cmp #'Z'+1
     bcc :+
     lda #3
     rts
