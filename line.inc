@@ -49,7 +49,7 @@ LINE_BACKSLASH = 18
     bridge_call
     stx line_meta
     sty line_meta+1
-    
+
     lda #0                          ; Store 0 at first address
     sta (line_meta)
 
@@ -124,7 +124,7 @@ loop:
     ldx index_src
     lda file_buf,x
     bne switch_state
-    
+
     ldx state
     cpx #LINE_SYMBOL
     beq switch_state
@@ -234,11 +234,11 @@ ifoption:
     jmp eol ; Else ignore line
 
     ; Symbol start?
-symstrt:   
-    cmp #'a'
+symstrt:
+    cmp #'A'
     bcs :+
     jmp fake_copy
-:   cmp #'z'+1
+:   cmp #'Z'+1
     bcc :+
     jmp fake_copy
 
@@ -250,9 +250,9 @@ symstrt:
 
 symbol:
     ; Alphabetic chars are allowed in symbol names, continue if found
-    cmp #'a'
+    cmp #'A'
     bcc :+
-    cmp #'z'+1
+    cmp #'Z'+1
     bcs :+
     jmp next
 
@@ -283,7 +283,7 @@ symbol_chk:
     dey
     jsr symbol_find
     bcc symbol_exists
-    
+
     lda index_dst
     beq :+
     jmp symbol_end
@@ -367,7 +367,7 @@ symbol_dup:
 SYMBOLTYPE_TOKEN:
     cpx #$8f    ; REM statement?
     bne symbol_end
-    
+
     lda line_option_rem
     bne symbol_end
     lda last_char
@@ -457,7 +457,7 @@ eol:
     ; Rewind destination line number if nothing was outputted to BASIC memory
     ldy index_dst
     bne :+
-    
+
     sec
     lda line_dstlin
     sbc line_autonum
@@ -494,7 +494,7 @@ eol:
     iny
     lda line_dstlin+1
     sta (line_meta),y
-    
+
     ; Point line_meta and line_code to next line
     clc
     lda line_code
@@ -539,7 +539,7 @@ default:
     bne ifoption
     ldx index_dst
     bne ifoption
-    
+
     ldx index_src
     inx
     jsr option_parse
@@ -601,7 +601,7 @@ ifoption:
     jmp eol ; Else ignore line
 
     ; String
-isstr:   
+isstr: 
     cmp #34 ; Double quote
     bne ishex
     ldx #LINE_STRING
@@ -645,9 +645,9 @@ ishex:
     jmp copy
 
     ; Symbol - A BASIC command, a label or a variable, starting with chars A..Z
-:   cmp #'a'
+:   cmp #'A'
     bcc :+
-    cmp #'z'+1
+    cmp #'Z'+1
     bcs :+
     ldx #LINE_SYMBOL
     stx state
@@ -660,12 +660,12 @@ ishex:
     ldy index_src
     jsr symbol_find
     bcs :+
-    
+
     txa
     ldy index_dst
     sta (line_code),y
     inc index_dst
-    jmp next    
+    jmp next
 
     ; Other input
 :   ldx index_src
@@ -729,9 +729,9 @@ hexnum:
     jmp copy
 
 :   ; A..F?
-    cmp #'a'
+    cmp #'A'
     bcc :+
-    cmp #'f'+1
+    cmp #'F'+1
     bcs :+
     jmp copy
 
@@ -759,7 +759,7 @@ decnum:
 
     inc dp_count
     ldx dp_count
-    cpx #2  
+    cpx #2
     bcc :+
 
     ; There were more than 1 decimal points: clear state and jump to beginning of loop so that the default handler can process this char
@@ -769,7 +769,7 @@ decnum:
 :   jmp copy
 
     ; Scientific number (E)?
-:   cmp #'e'
+:   cmp #('E' + $80) ; shifted PETSCII
     beq :+
     cmp #'E'
     bne :++
@@ -779,7 +779,7 @@ decnum:
     cpx #2
     bcc :--- ; First "E", copy to output
     bra :++ ; More than one "E", clear state and treat as start of new element
-    
+
     ; 0..9?
 :   cmp #'0'
     bcc :+
@@ -793,9 +793,9 @@ decnum:
 
 symbol:
     ; Alphabetic chars are allowed in symbol names, continue if found
-    cmp #'a'
+    cmp #'A'
     bcc :+
-    cmp #'z'+1
+    cmp #'Z'+1
     bcc symbol_cont
 
     ; Points are allowed in a symbol name, continue if found
@@ -828,7 +828,7 @@ symbol_check2:
     ldx symbol_start
     ldy index_src
     jsr symbol_find
-    
+
 symbol_found:
     pha
     php
@@ -864,7 +864,7 @@ symbol_found:
     beq symbol_insert_value
     cmp #SYMBOLTYPE_LITERAL_PASS1
     bne :+
-    
+
     clc
     lda #RESPONSE_SYMBOL_NOT_IN_SCOPE
     jsr response_set
@@ -891,7 +891,7 @@ symbol_found:
     beq symbol_insert_value
     cmp #$a4 ; To
     beq symbol_insert_value
-    
+
     clc
     lda #RESPONSE_LABEL_NOT_EXPECTED
     jsr response_set
@@ -919,7 +919,7 @@ symbol_insert_value:
 :   stz state
     jmp next
 
-newvar:   
+newvar:
     ; The symbol hasn't been decleared. Let's declear it as a new variable
     ldx symbol_start
     ldy index_src
@@ -972,7 +972,7 @@ newvar_ok:
     plx
     bcc insvar
     rts ; error
-    
+
 insvar:
    ; Store variable value to BASIC memory
     phy
@@ -1011,7 +1011,7 @@ instoken:
     txa
     sta (line_code),y
     inc index_dst
-    
+
     ; Insert extended token, if applicable
     pla
     beq :+
@@ -1117,7 +1117,7 @@ jump_table:
 .segment "VARS"
     state: .res 1
     index_src: .res 1
-    symbol_start: .res 1    
+    symbol_start: .res 1
     dp_count: .res 1
     e_count: .res 1
     index_dst: .res 1

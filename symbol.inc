@@ -126,7 +126,7 @@ SYMBOLTYPE_LITERAL_PASS2 = 6
     sta symbol_next_addr+1
 
     ; Set next available variable name to "A"
-    lda #'a'
+    lda #'A'
     sta symbol_next_var
     lda #0
     sta symbol_next_var+1
@@ -148,27 +148,27 @@ SYMBOLTYPE_LITERAL_PASS2 = 6
     jsr symbol_add
 
     ; Add reserved variables to the symbol table
-    lda #'s'
+    lda #'S'
     sta file_buf
-    lda #'t'
+    lda #'T'
     sta file_buf+1
     ldx #0
     ldy #1
     lda #SYMBOLTYPE_RESERVED_VAR
     jsr symbol_add
 
-    lda #'t'
+    lda #'T'
     sta file_buf
-    lda #'i'
+    lda #'I'
     sta file_buf+1
     ldx #0
     ldy #1
     lda #SYMBOLTYPE_RESERVED_VAR
     jsr symbol_add
     
-    lda #'d'
+    lda #'D'
     sta file_buf
-    lda #'a'
+    lda #'A'
     sta file_buf+1
     ldx #0
     ldy #1
@@ -250,7 +250,7 @@ PRINT_TOKEN:
     cmp #SYMBOLTYPE_LABEL
     bne :+
     lda symbol_next_var
-    cmp #'z'+1
+    cmp #'Z'+1
     bcc :+
     lda #3
     rts
@@ -410,7 +410,7 @@ inc_var:
     beq :++
     
     ; The current variable name ends with a 'Z' => The next variable is a single char
-    cmp #'z'+1
+    cmp #'Z'+1
     bne chk_var
 
     inc symbol_next_var
@@ -421,7 +421,7 @@ inc_var:
     sta symbol_next_var+1
     bra chk_var
 
-:   lda #'a'
+:   lda #'A'
     sta symbol_next_var+1
 
 chk_var:
@@ -680,16 +680,16 @@ not_found:
 .endproc
 
 SYMBOLTYPE_RESERVED_VARs:
-    .byt "da"
-    .byt "if"
-    .byt "fn"
-    .byt "go"
-    .byt "mx"
-    .byt "my"
-    .byt "mb"
-    .byt "on"
-    .byt "or"
-    .byt "st"
-    .byt "ti"
-    .byt "to"
+    .byt "DA"
+    .byt "IF"
+    .byt "FN"
+    .byt "GO"
+    .byt "MX"
+    .byt "MY"
+    .byt "MB"
+    .byt "ON"
+    .byt "OR"
+    .byt "ST"
+    .byt "TI"
+    .byt "TO"
 SYMBOLTYPE_RESERVED_VARs_end:

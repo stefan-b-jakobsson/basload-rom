@@ -576,18 +576,18 @@ no_match:
 
 options_tbl:
     .byt "#",0
-    .byt "rem",0
-    .byt "include",0
-    .byt "autonum", 0
-    .byt "controlcodes", 0
-    .byt "symfile", 0
-    .byt "saveas", 0
-    .byt "maxcolumn", 0
-    .byt "define", 0
-    .byt "ifdef", 0
-    .byt "ifndef", 0
-    .byt "endif", 0
-    .byt "token", 0
+    .byt "REM",0
+    .byt "INCLUDE",0
+    .byt "AUTONUM", 0
+    .byt "CONTROLCODES", 0
+    .byt "SYMFILE", 0
+    .byt "SAVEAS", 0
+    .byt "MAXCOLUMN", 0
+    .byt "DEFINE", 0
+    .byt "IFDEF", 0
+    .byt "IFNDEF", 0
+    .byt "ENDIF", 0
+    .byt "TOKEN", 0
     .byt 0
 
 .segment "VARS"
@@ -752,9 +752,9 @@ loop1:
     beq loop1_next
     cmp #160
     beq loop1_next
-    cmp #'a'
+    cmp #'A'
     bcc invalid
-    cmp #'z'+1
+    cmp #'Z'+1
     bcc found_start
 loop1_next:
     inx
@@ -780,9 +780,9 @@ loop2:
     beq loop2
     cmp #46 ; period
     beq loop2
-    cmp #'a'
+    cmp #'A'
     bcc invalid
-    cmp #'z'+1
+    cmp #'Z'+1
     bcc loop2
 
 invalid: 

@@ -583,20 +583,20 @@ file_ioerr_L:
 file_ioerr_H:
     .byt >file_ioerr_1, >file_ioerr_2, >file_ioerr_3, >file_ioerr_4, >file_ioerr_5, >file_ioerr_6, >file_ioerr_7, >file_ioerr_8, >file_ioerr_9
 file_ioerr_1:
-    .byt "too many open files", 0
+    .byt "TOO MANY OPEN FILES", 0
 file_ioerr_2:
-    .byt "file already open", 0
+    .byt "FILE ALREADY OPEN", 0
 file_ioerr_3:
-    .byt "file not open", 0
+    .byt "FILE NOT OPEN", 0
 file_ioerr_4:
-    .byt "file not found", 0
+    .byt "FILE NOT FOUND", 0
 file_ioerr_5:
-    .byt "device not present", 0
+    .byt "DEVICE NOT PRESENT", 0
 file_ioerr_6:
-    .byt "file is not an input file", 0
+    .byt "FILE IS NOT AN INPUT FILE", 0
 file_ioerr_7:
-    .byt "file is not an output file", 0
+    .byt "FILE IS NOT AN OUTPUT FILE", 0
 file_ioerr_8:
-    .byt "file name is missing", 0
+    .byt "FILE NAME IS MISSING", 0
 file_ioerr_9:
-    .byt "illegal device number", 0
+    .byt "ILLEGAL DEVICE NUMBER", 0
