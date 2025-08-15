@@ -446,6 +446,30 @@
     PRINT PI
          \end{verbatim}
 
+    \subsection{Option: \#SOURCELINES 0 $|$ 1}
+         If enabled, this option appends a REM statement to the end of each line of the
+         resulting code that shows the corresponding source line number. The option is intended for 
+         debugging of BASLOAD code.
+
+         It is possible to enable and disable the option multiple times in the source
+         code.
+
+         The REM statement added to the end of each line of the resulting code has
+         the following format:
+
+         \begin{verbatim}
+    ...:REM #<n0>-<n1>- ... -<nn>
+         \end{verbatim}
+
+         If the line exists in the main source file, only n0 is displayed. If the
+         line is from an include file, n0 to nn-1 point to a chain of
+         \#INCLUDE statements, while the actual source line number is the last
+         number.
+
+         The option is ignored if the line is too long to hold the REM
+         statement. If the REM statement ends with an asterisk (*) it means
+         that there was only room for part of the line number.
+
 \section{Running BASLOAD}
 
     \subsection{From BASIC}

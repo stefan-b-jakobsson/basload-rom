@@ -23,6 +23,7 @@ LINE_BACKSLASH = 18
     line_option_rem: .res 1
     line_autonum: .res 1
     line_option_controlcodes: .res 1
+    line_option_sourcelines: .res 1
     line_pass: .res 1
     mem_top: .res 2
 .CODE
@@ -79,7 +80,7 @@ LINE_BACKSLASH = 18
     ; Set default options
     stz line_option_rem ; Remove REms
     stz line_option_controlcodes
-
+    stz line_option_sourcelines
     rts
 .endproc
 
@@ -447,11 +448,13 @@ loop:
     ; Get next char from file buffer
     ldx index_src
     lda file_buf,x
-    bne switch_state
+    beq :+
+    jmp switch_state
 
-    ldx state
+:   ldx state
     cpx #LINE_SYMBOL
-    beq switch_state
+    bne eol
+    jmp switch_state
 
 eol:
     ; Rewind destination line number if nothing was outputted to BASIC memory
@@ -465,10 +468,84 @@ eol:
     lda line_dstlin+1
     sbc #0
     sta line_dstlin+1
-    bra exit
+    jmp exit
 
+:   ; Insert source line number, if option selected
+    lda line_option_sourcelines
+    beq eol_mark
+
+    cpy #247              ; Check if at least the shortest possible line number will fit
+    bcs eol_mark            ; It will not, skip this line
+
+    lda #':'                ; Insert colon
+    sta (line_code),y
+    inc index_dst
+    iny
+
+    lda #$8f                ; Insert REM token
+    sta (line_code),y
+    inc index_dst
+    iny
+
+    lda #' '                ; Insert blank space
+    sta (line_code),y
+    inc index_dst
+    iny
+
+    ldx #2                  ; Get source line number(s)
+    stx option_start        ; Reusing variable as file index
+source_lines_loop:
+    cpx #2
+    bne :+
+    lda #'#'                ; Insert hash tag
+    bra :++
+:   lda #'-'                ; Insert minus sign
+:   sta (line_code),y
+    inc index_dst
+
+    lda file_srclin_M-2,x
+    tay
+    lda file_srclin_H-2,x
+    pha
+    lda file_srclin_L-2,x
+    tax
+    pla
+
+    jsr util_bin_to_bcd     ; Convert to BCD format
+    lda #1
+    jsr util_bcd_to_str     ; Convert to string
+    stx TEMP1
+    sty TEMP1+1
+
+    ldy index_dst           ; Output source line number to destination
+:   lda (TEMP1)
+    beq :+
+    sta (line_code),y
+    inc index_dst
+    iny
+    cpy #251
+    bcs source_lines_full
+    inc TEMP1
+    bne :-
+    inc TEMP1+1
+    bra :-
+
+:   inc option_start          ; File index
+    ldx option_start
+    cpx file_line_from
+    bcc source_lines_loop
+    beq source_lines_loop
+    bra eol_mark
+
+source_lines_full:
+    lda #'*'
+    sta (line_code),y
+    iny
+    inc index_dst
+    
     ; Update BASIC memory: Set end of line marker
-:   lda #0
+eol_mark:
+    lda #0
     sta (line_code),y
     inc index_dst
 

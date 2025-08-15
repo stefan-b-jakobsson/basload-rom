@@ -48,6 +48,7 @@
 ;                   0b: #IFNDEF
 ;                   0c: #ENDIF
 ;                   0d: #TOKEN
+;                   0e: #SOURCELINES
 ;                   fa:          endif without if
 ;                   fb:          Too many nested if statements
 ;                   fc:          Duplicate symbol
@@ -85,8 +86,9 @@ get_option:
     cmp #3
     beq include
     cmp #4
-    beq autonum
-    cmp #5
+    bne :+
+    jmp autonum
+:   cmp #5
     bne :+ 
     jmp controlcodes
 :   cmp #6
@@ -111,8 +113,11 @@ get_option:
     bne :+
     jmp endif
 :   cmp #13
-    bne unknown
+    bne :+
     jmp token
+:   cmp #14
+    bne unknown
+    jmp sourcelines
 
 unknown:
     lda #0
@@ -494,6 +499,24 @@ token:
 :   lda #$fc
     rts
 
+sourcelines:
+    ldx index1
+    jsr option_get_int
+    bcc :+
+    jmp invalid
+:   stx tmp
+    ora tmp
+    tya
+    ora tmp
+    beq :+
+    lda #1
+    sta line_option_sourcelines
+    lda option_index
+    rts
+:   stz line_option_sourcelines
+    lda option_index
+    rts
+
 invalid:
     lda #$fe
     rts
@@ -518,6 +541,15 @@ invalid:
 ;                   3: #INCLUDE
 ;                   4: #AUTONUM
 ;                   5: #CONTROLCODES
+;                   6: #SYMFILE
+;                   7: #SAVEAS
+;                   8: #MAXCOLUMN
+;                   9: #DEFINE
+;                  10: #IFDEF
+;                  11: #IFNDEF
+;                  12: #ENDIF
+;                  13: #TOKEN
+;                  14: #SOURCELINES
 ;Error........: None
 .proc option_find
     ; Save input & init vars
@@ -588,6 +620,7 @@ options_tbl:
     .byt "IFNDEF", 0
     .byt "ENDIF", 0
     .byt "TOKEN", 0
+    .byt "SOURCELINES", 0
     .byt 0
 
 .segment "VARS"
