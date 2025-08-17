@@ -447,28 +447,45 @@
          \end{verbatim}
 
     \subsection{Option: \#SOURCELINES 0 $|$ 1}
-         If enabled, this option appends a REM statement to the end of each line of the
-         resulting code that shows the corresponding source line number. The option is intended for 
-         debugging of BASLOAD code.
+        When enabled this option appends a REM statement to the end of each line of the
+        transpiled code, indicating the corresponding line in the source file. 
+        The option is useful for debugging. It is possible to toggle the option on or off multiple times 
+        in the source code.
 
-         It is possible to enable and disable the option multiple times in the source
-         code.
+        Values:
+        \begin{itemize}
+            \item 0 = Option disabled
+            \item 1 = Option enabled
+        \end{itemize}
 
-         The REM statement added to the end of each line of the resulting code has
-         the following format:
+        Format of appended REM statement:
+        \begin{itemize}
+            \item For lines from the main source file: REM \#nn, where nn is the line number.
+            \item For included files: REM \#nn-mm, where nn is the line in the main source file
+            where the \#INCLUDE statement is found, and mm is the line in the included file.
+        \end{itemize}
 
-         \begin{verbatim}
-    ...:REM #<n0>-<n1>- ... -<nn>
+        Example:
+        \begin{verbatim}
+    main.bas:
+      #SOURCEFILES 1
+      #INCLUDE "INC.BAS"
+      PRINT MSG$
+
+    inc.bas:
+      MSG$="HELLO, WORLD!"
+    
+    Transpiled code:
+      MSG$="HELLO, WORLD!":REM #2-1
+      PRINT MSG$:REM #3
          \end{verbatim}
+    
+        Here, REM \#2-1 indicates the code originated from line 2 in main.bas (the \#INCLUDE)
+        and line 1 in inc.bas.
 
-         If the line exists in the main source file, only n0 is displayed. If the
-         line is from an include file, n0 to nn-1 point to a chain of
-         \#INCLUDE statements, while the actual source line number is the last
-         number.
-
-         The option is ignored if the line is too long to hold the REM
-         statement. If the REM statement ends with an asterisk (*) it means
-         that there was only room for part of the line number.
+        The REM statement is truncated with an asterisk (*) if the line would otherwise
+        exceed its maximum length. The statement is omitted if there is no space at all
+        for it within the maximum length of a line.
 
 \section{Running BASLOAD}
 
