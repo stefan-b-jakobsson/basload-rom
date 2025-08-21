@@ -1173,6 +1173,15 @@ curly_err:
     rts
 
 backslash:
+    cmp #34 ; Double quote?
+    bne :+
+
+    ; Double qoute, close string
+    ldx #LINE_DEFAULT_ELEMENT
+    stx state
+    jmp copy
+
+:   ; Not double quote, emit char
     ldx #LINE_STRING
     stx state
     jmp copy
