@@ -12,6 +12,7 @@ LINE_SYMBOL = 12
 LINE_DATA = 14
 LINE_CURLY = 16
 LINE_BACKSLASH = 18
+LINE_CHARCODE = 20
 
 ; Variables
 .ZEROPAGE
@@ -767,23 +768,24 @@ string:
     stx state
     jmp copy
 
-    ; Check if backslash => change state and discard char
-:   cmp #$5c ; Backslash
-    bne :+
-    lda #LINE_BACKSLASH
-    sta state
-    jmp next
-
     ; Save char on stack
 :   pha
 
     ; Check if controlcode option is active
     ldx line_option_controlcodes
-    beq :+ ; no
+    beq string_cont    ; no
+
+    ; Check if backslash => change state and discard char
+:   cmp #$5c ; Backslash
+    bne :+
+    lda #LINE_BACKSLASH
+    sta state
+    pla
+    jmp next
 
     ; Check if left curly bracket "{" => start of control code
-    cmp #123 ; Left curly bracket
-    bne :+ ; no
+:   cmp #123 ; Left curly bracket
+    bne string_cont ; no
 
     ; We are at start of a control code, set state and discard char
     pla
@@ -794,7 +796,8 @@ string:
     jmp next
 
     ; Default behavior, copy char to output
-:   pla
+string_cont:
+    pla
     jmp copy
 
 hexnum:
@@ -1181,7 +1184,52 @@ backslash:
     stx state
     jmp copy
 
-:   ; Not double quote, emit char
+:   cmp #'X' ; Start of PETSCII/ASCII character as hex code?
+    beq :+
+    cmp #'x'
+    bne :++
+:   ldx #LINE_CHARCODE
+    stx state
+    jmp next
+
+    ; Not double quote, emit char
+:   ldx #LINE_STRING
+    stx state
+    jmp copy
+
+charcode:
+    and #223 ; Convert case, also affects digits
+    sec
+    sbc #16
+    bcc charcode_invalid
+    cmp #10
+    bcc :+
+    sbc #39
+    bcc charcode_invalid
+    cmp #16
+    bcs charcode_invalid
+
+:   cpx #LINE_CHARCODE
+    bne :+
+
+    ; First char
+    asl
+    asl
+    asl
+    asl
+    sta backslash_char
+    inc state
+    inc state
+    jmp next
+
+:   ; Second char
+    ora backslash_char
+    ldx #LINE_STRING
+    stx state
+    jmp copy
+
+charcode_invalid:
+    lda #'?'
     ldx #LINE_STRING
     stx state
     jmp copy
@@ -1198,7 +1246,7 @@ next:
     jmp loop
 
 jump_table:
-    .word default, remark, string, hexnum, binnum, decnum, symbol, data, curly, backslash
+    .word default, remark, string, hexnum, binnum, decnum, symbol, data, curly, backslash, charcode, charcode
 
 .segment "VARS"
     state: .res 1
@@ -1211,5 +1259,6 @@ jump_table:
     quotes_count: .res 1
     option_start: .res 1
     curly_start_index: .res 1
+    backslash_char: .res 1
 .CODE
 .endproc
