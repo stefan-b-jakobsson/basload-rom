@@ -733,6 +733,12 @@ ishex:
     stx symbol_start
     jmp next
 
+    ; Convert PETSCII 126 (PI) outside strings to PETSCII 255 (PI token)
+:   cmp #126
+    bne :+
+    lda #255
+    jmp copy
+
     ; BASIC operators, eg. +, -, *, / - Tokenized as commands
 :   ldx index_src
     ldy index_src
@@ -776,7 +782,7 @@ string:
     beq string_cont    ; no
 
     ; Check if backslash => change state and discard char
-:   cmp #$5c ; Backslash
+    cmp #$5c ; Backslash
     bne :+
     lda #LINE_BACKSLASH
     sta state
