@@ -1134,23 +1134,38 @@ instoken:
     jmp next
 
 data:
-    tax
+    ; Parser for DATA statement values
+    tax ; backup char in .X
+    cmp #34 ; Is it a double quote?
+    bne data2 ; No
+    inc quotes_count ; Increment quote counter
+    bra data4 ; Output quote char
 
-    cmp #34 ; Double quote?
-    bne :+
-    inc quotes_count
-    bra :++
-
-:   lda quotes_count
+data2:   
+    lda quotes_count ; Is the char in a string?
     and #1
-    bne :+
+    bne data4 ; Yes, copy to output as is
 
-    cpx #':'
-    bne :+
-    stz state
+    cpx #':' ; Is it end of statement?
+    bne data3 ; No
+    stz state ; Yes, reset state
+    bra data4 ; and copy colon to output
 
-:   txa
+data3:
+    cpx #32 ; Is it a space (outside string)?
+    beq data5 ; Yes, suppress
+    cpx #9 ; Is it a tab (outside string)?
+    beq data5 ; Yes, suppress
+    cpx #160 ; Is it shift+space (outside string)?
+    beq data5 ; Yes, suppress
+    
+data4:
+    ; Copy char to output
+    txa
     jmp copy
+
+data5:
+    jmp next ; Suppress char and go to next
 
 curly:
     ; Check if right curly bracket "}" marking the end of a control code
