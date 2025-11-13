@@ -553,8 +553,8 @@ err:
     stz RAM_SEL
     ldy #0
 :   lda (TEMP1),y
-    beq :+
     sta $bf00,y
+    beq :+
     iny
     bra :-
 
