@@ -39,14 +39,14 @@
     \begin{itemize}
         \item Source code may be edited in any text editor.
         \item Line numbers are not used in the source code; named labels are 
-              decleared as targets for GOTOs and GOSUBs.
+              declared as targets for GOTOs and GOSUBs.
         \item Long variable names are supported, while only the first two 
               characters of a variable name are significant in the built-in 
               BASIC.
     \end{itemize}
     
     This manual describes the ROM based version of BASLOAD. The original RAM
-    based version of BASLOAD is depreciated.
+    based version of BASLOAD is deprecated.
 
     The Commander X16 was devised by David Murray a.k.a. the 
     8-Bit Guy. For more information on the platform, go to 
@@ -54,7 +54,7 @@
 
 \section{Hello World Example}
 
-    Let's begin with a simple Hello world example in BASLOAD formatted
+    Let's begin with a simple "Hello World" example in BASLOAD formatted
     source code. Open your text editor, type in the code below, and save it to
     the file "HELLO.BAS" on the SD card.
 
@@ -74,7 +74,7 @@
     The program is now loaded into memory. You can type LIST to
     show it and RUN to execute it.
 
-    If you get a ?Syntax Error, it means that BASLOAD is not
+    If the result is ?SYNTAX ERROR, it means that BASLOAD is not
     present in your ROM.
 
 \section{Source Code Files}
@@ -97,7 +97,7 @@
 
         Source code written for BASLOAD is meant to be as close as
         possible to BASIC typed in at the on-screen editor
-        (the "built-in BASIC").
+        (the built-in BASIC).
 
         The source code follows the same syntax and supports the
         same commands and operators as the built-in
@@ -110,7 +110,7 @@
 
         \begin{itemize}
             \item Line numbers are not used in BASLOAD source code.
-            \item Labels are decleared as targets for GOTOs, GOSUBs and
+            \item Labels are declared as targets for GOTOs, GOSUBs and
                   other commands that normally take a line number.
             \item Variable names have up to 64 significant characters, compared to two
                   in the built-in BASIC.
@@ -121,31 +121,31 @@
     
     \subsection{Identifiers}
 
-        BASIC commands, labels, variables and defined constants are commonly referred to as "identifiers" in this
+        BASIC commands, labels, variables, and defined constants are commonly referred to as "identifiers" in this
         manual.
 
-        Identifiers start with a letter, any of A--Z.
+        Identifiers must start with a letter, A through Z.
 
         Subsequent characters may be any of:
 
         \begin{itemize}
-            \item A letter A--Z.
-            \item A digit 0--9. 
+            \item A letter A-Z.
+            \item A digit 0-9. 
             \item An underscore. 
             \item A period (.).
         \end{itemize}
 
         Identifiers are not case-sensitive, and may be at most 64 characters long.
 
-        An identifier may not be exactly the same as an already existing identifier.
+        Reserved words from the built-in BASIC cannot be used as identifiers.
 
     \subsection{Labels}
 
         Labels are used as targets for commands that take a line number in
         the built-in BASIC, such as GOTO, GOSUB and RESTORE.
 
-        A label is decleared at the beginnig of a line. There may, however,
-        be whitespace before the start of the declaration.
+        A label is declared at the beginning of a line. Whitespace is permitted
+        before the start of the declaration.
 
         A label must be a valid identifier, as described above. The end of
         a label declaration is marked with a colon.
@@ -172,7 +172,7 @@
 
     \subsection{Variables}
 
-        Variables are automatically decleared when they are first used in
+        Variables are automatically declared when they are first used in
         code.
 
         A variable must be a valid identifier as described above.
@@ -216,7 +216,7 @@
     \subsection{General}
 
         BASLOAD lets you put options in the source code that affect the output, similar to
-        directives in C/C++.
+        compiler directives in C/C++.
 
         An option must be placed at the beginning of a line, but there may be
         whitespace before it.
@@ -246,13 +246,13 @@
         \end{itemize}
 
         Arguments are separated by one or more whitespace characters.
-        Arguments may be integer values in decimal format, identifier names or strings. 
-        A string may optionally be enclosed in duoble quotes, which makes it possible 
+        Arguments may be numeric values, identifier names, or strings. 
+        A string may optionally be enclosed in double quotes, which makes it possible 
         for it to contain whitespace characters.
 
     \subsection{Option: \#\# Comment}
 
-        This option is an alternative comment that is never outputted to runnable
+        This option is an alternative comment that is never included with the generated
         code.
 
         Example:
@@ -295,7 +295,7 @@
 
     \subsection{Option: \#AUTONUM \textless int8 \textgreater }
 
-        The autonum option makes it possible to set how many
+        The AUTONUM option makes it possible to set how many
         steps the line number of the resulting code is
         advanced for each outputted line.
 
@@ -307,7 +307,7 @@
         The default step value is 1.
 
         This option may come in handy if you want to make
-        room to insert code directly into the runnable code,
+        room to insert code directly into the generated code,
         for instance for debugging.
         
         Example that advances the output line counter 10 steps per line
@@ -316,14 +316,14 @@
         \end{verbatim}
 
     \subsection{Option: \#CONTROLCODES 0 $|$ 1}
-        The controlcodes option makes it possible to type
+        The CONTROLCODES option makes it possible to type
         named PETSCII control characters, such as arrow up or
         down.
 
         The control codes are all typed within curly brackets. There
         is a list of the control codes in Appendix A. 
 
-        The controlcodes option takes effect from the line
+        The CONTROLCODES option takes effect from the line
         where it is encountered and remains in force until
         changed. It is possible to change the
         option multiple times in the source code.
@@ -392,15 +392,15 @@
 
     \subsection{Option: \#DEFINE \textless identifier name\textgreater \  \textless int16\textgreater }
     
-        This option defines a 16 bit constant integer.
+        This option defines a 16 bit integer constant.
         
         It is possible to redefine the constant multiple times.
         It is, however, not possible to use the same identifier name as is also
-        used for BASIC commands, variables or labels.
+        used for BASIC reserved words, variables, or labels.
 
         After it has been defined, the name of a constant can be used in
         the source code. It is then replaced by its integer value in the resulting
-        runnable code.
+        generated code.
 
         Defining constants is also useful for conditional translation of the
         source code, which is discussed more in depth below.
@@ -418,7 +418,7 @@
         the \#IFDEF, \#IFNDEF and \#ENDIF options.
 
         IFDEF checks if the specified defined constant exists. Other identifiers,
-        such as BASIC commands, variables and labels, are ignored by IFDEF.
+        such as BASIC reserved words, variables, and labels, are ignored by IFDEF.
         If the defined constant does not exist, all subsequent code in the source
         file is ignored until the matching ENDIF statement.
 
@@ -543,7 +543,7 @@
             \item 0 = OK
             \item 1 = Line too long
             \item 2 = Symbol too long
-            \item 3 = Duplicate sybols
+            \item 3 = Duplicate symbols
             \item 4 = Symbol table full
             \item 5 = Out of variable names
             \item 6 = Label expected
