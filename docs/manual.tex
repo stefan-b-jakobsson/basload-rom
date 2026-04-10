@@ -118,7 +118,14 @@
                   \textit{i.e.} commands, labels, and variables, from each other.
                   
         \end{itemize}
-    
+
+        When translating code written for the built-in BASIC, note that BASLOAD distinguishes between 
+        variable names based on the first 64 characters. A program written for the built-in BASIC can refer 
+        to the same variable using names of different lengths. For instance TI\$ and TIME\$ both return the 
+        current time in the built-in BASIC, and DA\$ and DATE\$ both return the current date{\textemdash}while BASLOAD 
+        will treat TIME\$ and DATE\$ as different variables than TI\$ and DA\$. When writing BASLOAD programs, 
+        always use the short forms TI\$ and DA\$ directly.
+
     \subsection{Identifiers}
 
         BASIC commands, labels, variables, and defined constants are commonly referred to as "identifiers" in this
